@@ -26,6 +26,8 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+      - name: Restore script permissions
+        run: chmod +x scripts/*.sh
       - name: Build application
         run: npm run build
       - name: Prepare static site
