@@ -199,8 +199,6 @@ export default function Home() {
   }, []);
   useEffect(() => { if (ready) localStorage.setItem("adl-unterrichtsplanung-v2", JSON.stringify({ groups, teachers, templates, weeks })); }, [groups, teachers, templates, weeks, ready]);
 
-  if (!loggedIn) return <LoginScreen role={loginRole} onRoleChange={setLoginRole} onLogin={() => { setLoggedIn(true); setViewer(loginRole === "koordination" ? "all" : "t1"); }} />;
-
   const activeSession = useMemo(() => {
     if (!editTarget) return null;
     const source = editTarget.kind === "week" ? currentSessions : templates[selectedTemplate] ?? [];
@@ -265,6 +263,8 @@ export default function Home() {
     setTemplates({ regel: ruleTemplate, projekt: projectTemplate }); setWeeks({ [isoDate(baseMonday)]: sampleWeek }); setWeekOffset(0);
     toast.success("Beispieldaten wiederhergestellt");
   }
+
+  if (!loggedIn) return <LoginScreen role={loginRole} onRoleChange={setLoginRole} onLogin={() => { setLoggedIn(true); setViewer(loginRole === "koordination" ? "all" : "t1"); }} />;
 
   return (
     <main className="app-shell">
