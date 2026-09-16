@@ -26,20 +26,16 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-      - name: Restore script permissions
-        run: chmod +x scripts/*.sh
-      - name: Build application
-        run: npm run build
+      - name: Build static application
+        run: npx next build
       - name: Prepare static site
-        run: |
-          test -f dist/client/index.html
-          touch dist/client/.nojekyll
+        run: touch out/.nojekyll
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: dist/client
+          path: out
 
   deploy:
     environment:
