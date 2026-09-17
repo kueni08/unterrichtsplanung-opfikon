@@ -340,3 +340,29 @@ button, input, textarea { font: inherit; } button { cursor: pointer; }
 .move-option:hover { background: #f3f7fa; border-color: #b9cbdb; } .move-option strong { display: block; font-size: 14px; } .move-option small { display: block; margin-top: 2px; color: #6d7e90; font-size: 12px; line-height: 1.35; }
 .move-option-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: #e8eff5; color: #0b4a7e; } .move-option-icon svg { width: 18px; height: 18px; }
 .move-option.destructive:hover { background: #fff3f3; border-color: #e0a8ad; } .move-option.destructive .move-option-icon { background: #fbe9ea; color: #b23a44; }
+
+/* Rückblick im Lektions-Editor */
+.history-panel { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid #cfdbe6; border-radius: 12px; background: #f3f7fa; }
+.history-panel h4 { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 13px; color: #0b4a7e; }
+.history-next { display: grid; grid-template-columns: 16px 1fr; gap: 8px; align-items: start; padding: 8px 10px; border-radius: 9px; background: #fff7dd; border: 1px solid #ecd58e; color: #5c3f07; font-size: 13px; line-height: 1.4; }
+.history-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.history-list li { padding: 6px 8px; border-radius: 9px; background: #fff; border: 1px solid #e3eaf0; }
+.history-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; width: 100%; padding: 0; border: 0; background: none; text-align: left; color: inherit; font-size: 13px; }
+.history-head:hover strong { text-decoration: underline; } .history-date { color: #6d7e90; font-size: 11px; font-weight: 800; letter-spacing: .02em; white-space: nowrap; }
+.history-focus { color: #718194; font-size: 12px; }
+.history-line { display: flex; gap: 6px; align-items: flex-start; margin: 4px 0 0; font-size: 12px; color: #3f5670; line-height: 1.4; } .history-line svg { flex: none; margin-top: 2px; color: #0b4a7e; }
+.history-notes { color: #718194; white-space: pre-line; }
+.hw-pill { padding: 2px 5px; border-radius: 99px; background: #e2edf8; color: #0b4a7e; font-size: 9px; font-weight: 800; letter-spacing: .04em; }
+
+/* Hausaufgaben-Übersicht */
+.homework-view { padding: 4px 0 24px; }
+.homework-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.homework-card { display: grid; gap: 8px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 14px; background: #fff; box-shadow: 0 3px 8px #1a37520a; align-content: start; }
+.homework-card h3 { margin: 0; font-size: 15px; }
+.homework-row { display: grid; gap: 5px; width: 100%; padding: 8px 10px; border: 1px solid #e3eaf0; border-radius: 10px; background: #f8fafc; text-align: left; color: inherit; font-size: 13px; line-height: 1.4; }
+.homework-row:hover { border-color: #b9cbdb; background: #f3f7fa; } .homework-row.is-latest { background: #fff; border-color: #cfdbe6; }
+.homework-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.group-chip { padding: 1px 7px; border-radius: 99px; color: #fff; font-size: 10px; font-weight: 800; } .group-chip.all { background: #a98bc4; }
+.homework-text { white-space: pre-line; }
+.homework-more { justify-self: start; display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border: 0; border-radius: 8px; background: transparent; color: #0b4a7e; font-size: 12px; font-weight: 700; } .homework-more:hover { background: #e8eff5; }
+.homework-empty { display: grid; justify-items: center; gap: 8px; max-width: 460px; margin: 40px auto; text-align: center; color: #5b7088; } .homework-empty h2 { margin: 0; font-size: 18px; color: var(--foreground); } .homework-empty p { margin: 0; font-size: 14px; line-height: 1.5; }

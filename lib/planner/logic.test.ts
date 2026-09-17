@@ -19,6 +19,9 @@ import {
   reorderSessions,
   resolveAssignments,
   groupClusters,
+  homeworkBySubject,
+  previousLessons,
+  subjectsOf,
   mergeCandidates,
   sessionTeacherIds,
   setAssignment,
@@ -38,6 +41,8 @@ function makeSession(id: string, day: DayKey, slot: number, overrides: Partial<S
     focus: "",
     room: "",
     notes: "",
+    homework: "",
+    nextTime: "",
     children: "",
     wholeClass: false,
     status: "planned",
@@ -640,4 +645,44 @@ test("planningWarnings: zusammengelegte Gruppen erzeugen keine Warnung", () => {
     { groupId: "g5", teacherId: "t2", subject: "Deutsch" },
   ] });
   assert.deepEqual(planningWarnings([s], G, teachers), []);
+});
+
+// ---------------------------------------------------------------------------
+// Verlauf: frühere Lektionen und Hausaufgaben je Fach
+// ---------------------------------------------------------------------------
+
+test("subjectsOf: Fächer der Gruppen, sonst Titel", () => {
+  assert.deepEqual(subjectsOf(makeSession("a", "mo", 0, { title: "Mathe" })), ["Mathe"]);
+  assert.deepEqual(subjectsOf(makeSession("b", "mo", 0, { title: "x", assignments: [{ groupId: "g3", teacherId: "t", subject: "Englisch" }, { groupId: "g4", teacherId: "t", subject: "Französisch" }, { groupId: "g5", teacherId: "", off: true, subject: "Sport" }] })), ["Englisch", "Französisch"]);
+});
+
+test("previousLessons: frühere Lektionen desselben Fachs mit gemeinsamer Gruppe, neueste zuerst", () => {
+  const w1 = "2026-09-07", w2 = "2026-09-14";
+  const a1 = makeSession("a1", "mo", 1, { weekStart: w1, title: "Mathe", assignments: [{ groupId: "g3", teacherId: "t", subject: "Mathe" }], homework: "S. 12" });
+  const a2 = makeSession("a2", "mi", 2, { weekStart: w1, title: "Mathe", assignments: [{ groupId: "g3", teacherId: "t", subject: "Mathe" }], nextTime: "Bruchrechnen wiederholen" });
+  const other = makeSession("o", "di", 1, { weekStart: w1, title: "Mathe", assignments: [{ groupId: "g5", teacherId: "t", subject: "Mathe" }] });
+  const deutsch = makeSession("d", "do", 1, { weekStart: w1, title: "Deutsch", assignments: [{ groupId: "g3", teacherId: "t", subject: "Deutsch" }] });
+  const tpl = makeSession("tpl", "mo", 1, { templateId: "T", title: "Mathe" });
+  const later = makeSession("l", "fr", 1, { weekStart: w2, title: "Mathe", assignments: [{ groupId: "g3", teacherId: "t", subject: "Mathe" }] });
+  const current = makeSession("c", "mo", 1, { weekStart: w2, title: "Mathe", assignments: [{ groupId: "g3", teacherId: "t", subject: "Mathe" }] });
+  const all = [a1, a2, other, deutsch, tpl, later, current];
+  assert.deepEqual(previousLessons(all, current).map((s) => s.id), ["a2", "a1"]);
+  // ganze Klasse passt zu allen Gruppen
+  const whole = makeSession("w", "mo", 3, { weekStart: w2, title: "Mathe", wholeClass: true });
+  assert.deepEqual(previousLessons([...all, whole], whole).map((s) => s.id), ["c", "a2", "o"]);
+  assert.deepEqual(previousLessons(all, tpl), [], "Vorlagen haben keinen Verlauf");
+});
+
+test("homeworkBySubject: je Fach neueste zuerst, nur Wochenlektionen mit Hausaufgaben", () => {
+  const w1 = "2026-09-07", w2 = "2026-09-14";
+  const all = [
+    makeSession("a", "mo", 1, { weekStart: w1, title: "Mathe", homework: "S. 12" }),
+    makeSession("b", "mo", 1, { weekStart: w2, title: "Mathe", homework: "S. 15" }),
+    makeSession("c", "di", 1, { weekStart: w2, title: "Deutsch", homework: "Lesen" }),
+    makeSession("d", "mi", 1, { weekStart: w2, title: "Mathe" }),
+    makeSession("t", "mi", 1, { templateId: "T", title: "Mathe", homework: "nie" }),
+  ];
+  const map = homeworkBySubject(all);
+  assert.deepEqual([...map.keys()].sort(), ["deutsch", "mathe"]);
+  assert.deepEqual(map.get("mathe")!.map((e) => e.session.id), ["b", "a"]);
 });

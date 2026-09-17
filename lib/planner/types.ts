@@ -31,6 +31,10 @@ export type Session = {
   focus: string;
   room: string;
   notes: string;
+  /** Hausaufgaben, die in dieser Lektion verteilt wurden */
+  homework: string;
+  /** Hinweis für die nächste Lektion in diesem Fach (erscheint dort automatisch als Rückblick) */
+  nextTime: string;
   children: string;
   wholeClass: boolean;
   status: SessionStatus;

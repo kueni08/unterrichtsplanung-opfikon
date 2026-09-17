@@ -57,6 +57,7 @@ export function SessionCard({ session, groups, teachers, viewerId = "all", expan
       <div className="session-title-row">
         {showDragHandle && <span className="card-drag-handle" aria-hidden="true"><GripVertical /></span>}
         <strong>{session.title}</strong>
+        {session.homework.trim() && <span className="hw-pill" title={`Hausaufgaben: ${session.homework}`}>HA</span>}
         {session.status !== "planned" && <span className="status-pill">{STATUS_LABEL[session.status]}</span>}
       </div>
       {session.focus && <p>{session.focus}</p>}

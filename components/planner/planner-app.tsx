@@ -1,13 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import {
-  CalendarDays, Check, CheckCheck, ChevronLeft, ChevronRight, CircleAlert, CopyPlus,
-  GripVertical, HelpCircle, LayoutGrid, LogOut, Printer, Settings2, TriangleAlert, Users,
-} from "lucide-react";
+import { BookOpenCheck, CalendarDays, Check, CheckCheck, ChevronLeft, ChevronRight, CircleAlert, CopyPlus, GripVertical, HelpCircle, LayoutGrid, LogOut, Printer, Settings2, TriangleAlert, Users } from "lucide-react";
 
 import { AdminView, MiniTemplate } from "@/components/planner/admin-view";
 import { DayView } from "@/components/planner/day-view";
+import { HomeworkView } from "@/components/planner/homework-view";
 import { LessonSheet } from "@/components/planner/lesson-sheet";
 import { MoveDialog, type MoveConflict } from "@/components/planner/move-dialog";
 import { OwlLogo } from "@/components/planner/owl-logo";
@@ -60,7 +58,7 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
   onExitDemo?: () => void;
 }) {
   const api = usePlanner(backend, { userId, displayName });
-  const [tab, setTab] = useState<"week" | "day" | "admin">("week");
+  const [tab, setTab] = useState<"week" | "day" | "homework" | "admin">("week");
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState<DayKey>(defaultDayForToday);
   const [viewOverride, setViewOverride] = useState<string | null>(null);
@@ -188,6 +186,7 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
           <TabsList variant="line" className="main-tabs">
             <TabsTrigger value="week"><LayoutGrid /> Wochenplan</TabsTrigger>
             <TabsTrigger value="day"><CalendarDays /> Tagesfokus</TabsTrigger>
+            <TabsTrigger value="homework"><BookOpenCheck /> Hausaufgaben</TabsTrigger>
             {api.isCoordinator && <TabsTrigger value="admin"><Settings2 /> Admin</TabsTrigger>}
           </TabsList>
           <div className="view-selector">
@@ -306,6 +305,9 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
           />
         </TabsContent>
 
+        <TabsContent value="homework" className="view-space">
+          <HomeworkView sessions={snapshot.sessions} groups={snapshot.groups} onOpen={(id) => setSheetSessionId(id)} />
+        </TabsContent>
         {api.isCoordinator && (
           <TabsContent value="admin" className="view-space">
             <AdminView
@@ -329,6 +331,7 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
         isCoordinator={api.isCoordinator}
         templateId={selectedTemplateId}
         onRequestMove={requestMove}
+        onOpenSession={(id) => setSheetSessionId(id)}
         onOpenChange={(open) => !open && setSheetSessionId(null)}
       />
       <MoveDialog
