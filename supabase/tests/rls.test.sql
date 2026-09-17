@@ -156,13 +156,16 @@ select pg_temp.expect((select count(*) from pg_publication_tables where pubname 
 
 \echo 'Alle Datenbanktests bestanden.'
 
--- 7) Kinder-Stammliste: Koordination (inzwischen b) schreibt, Lehrperson (a) liest nur
+-- 7) Kinder-Stammliste: Koordination schreibt, Lehrperson liest nur (eigenes Team, da oben gelöscht)
 reset role;
-select pg_temp.act_as('00000000-0000-0000-0000-00000000000b');
-insert into public.children (team_id, first_name, last_name, short) values (:'team_id', 'Anna', 'Muster', 'AM');
-select pg_temp.expect((select count(*) from public.children where team_id = :'team_id') = 1, 'Koordination erfasst ein Kind');
 select pg_temp.act_as('00000000-0000-0000-0000-00000000000a');
-select pg_temp.expect((select count(*) from public.children where team_id = :'team_id') = 1, 'Lehrperson sieht die Stammliste');
-select pg_temp.expect_error(format($q$insert into public.children (team_id, first_name, last_name, short) values (%L, 'Ben', 'Keller', 'BK')$q$, :'team_id'), 'Lehrperson legt kein Kind an');
+select public.create_team('Kinder-Team', 'Lara Meier') as kids_team \gset
+select join_code as kids_code from public.teams where id = :'kids_team' \gset
+insert into public.children (team_id, first_name, last_name, short) values (:'kids_team', 'Anna', 'Muster', 'AM');
+select pg_temp.expect((select count(*) from public.children where team_id = :'kids_team') = 1, 'Koordination erfasst ein Kind');
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000b');
+select public.join_team(:'kids_code', 'Kim Berger');
+select pg_temp.expect((select count(*) from public.children where team_id = :'kids_team') = 1, 'Lehrperson sieht die Stammliste');
+select pg_temp.expect_error(format($q$insert into public.children (team_id, first_name, last_name, short) values (%L, 'Ben', 'Keller', 'BK')$q$, :'kids_team'), 'Lehrperson legt kein Kind an');
 select pg_temp.act_as('00000000-0000-0000-0000-00000000000c');
-select pg_temp.expect((select count(*) from public.children where team_id = :'team_id') = 0, 'Fremde sehen keine Kinder');
+select pg_temp.expect((select count(*) from public.children where team_id = :'kids_team') = 0, 'Fremde sehen keine Kinder');
