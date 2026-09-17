@@ -7,7 +7,7 @@ import type { PlannerBackend } from "@/lib/planner/backend";
 import { DAYS, SLOTS, TEACHER_PALETTE, GROUP_PALETTE, isMeetingSlot } from "@/lib/planner/constants";
 import {
   applyChanged, carryForwardTarget, continuationTitle, defaultAssignments, emptyDays,
-  findFreeSlot, makeSession, newId, pickFields, reorderSessions, sessionsIn, uniqueInitials, weekFromTemplate,
+  findFreeSlot, makeSession, newId, pickFields, reorderSessions, sameContainer, sessionsIn, uniqueInitials, weekFromTemplate,
 } from "@/lib/planner/logic";
 import type { DayKey, DayMeta, Group, Member, PersistOp, PlannerSnapshot, Role, Session, Teacher, Template, Viewer } from "@/lib/planner/types";
 
@@ -225,6 +225,52 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     return true;
   }, [commit, flush]);
 
+  /** Zwei Blöcke derselben Woche/Vorlage tauschen die Plätze. */
+  const swapSessions = useCallback((idA: string, idB: string): boolean => {
+    flush();
+    const snap = get();
+    const a = snap.sessions.find((s) => s.id === idA);
+    const b = snap.sessions.find((s) => s.id === idB);
+    if (!a || !b || !sameContainer(a, b)) return false;
+    const changed = [{ ...a, day: b.day, slot: b.slot }, { ...b, day: a.day, slot: a.slot }];
+    commit({ ...snap, sessions: applyChanged(snap.sessions, changed) }, [{ type: "moveSessions", rows: changed }]);
+    toast.success("Blöcke getauscht");
+    return true;
+  }, [commit, flush]);
+
+  /** Der Zielblock wird gelöscht, der verschobene Block nimmt seinen Platz ein. */
+  const replaceSession = useCallback((id: string, targetId: string): boolean => {
+    flush();
+    const snap = get();
+    const a = snap.sessions.find((s) => s.id === id);
+    const target = snap.sessions.find((s) => s.id === targetId);
+    if (!a || !target || !sameContainer(a, target)) return false;
+    const moved = { ...a, day: target.day, slot: target.slot };
+    const sessions = applyChanged(snap.sessions.filter((s) => s.id !== targetId), [moved]);
+    commit({ ...snap, sessions }, [{ type: "deleteSessions", ids: [targetId] }, { type: "moveSessions", rows: [moved] }]);
+    toast.success(`„${target.title}“ ersetzt`);
+    return true;
+  }, [commit, flush]);
+
+  /**
+   * Der verschobene Block geht als Bestandteil im Zielblock auf (z. B. weil er noch nicht fertig war):
+   * Titel und Stichworte werden ergänzt, Notizen angehängt, der verschobene Block entfällt.
+   */
+  const appendSession = useCallback((id: string, targetId: string): boolean => {
+    flush();
+    const snap = get();
+    const a = snap.sessions.find((s) => s.id === id);
+    const target = snap.sessions.find((s) => s.id === targetId);
+    if (!a || !target || !sameContainer(a, target)) return false;
+    const focus = [target.focus.trim(), `+ ${a.title}${a.focus.trim() ? ` (${a.focus.trim()})` : ""}`].filter(Boolean).join(" · ");
+    const notes = [target.notes.trim(), a.notes.trim() ? `— Aus „${a.title}“ übernommen —\n${a.notes.trim()}` : ""].filter(Boolean).join("\n\n");
+    const patch: Partial<Session> = { focus, notes };
+    const sessions = snap.sessions.filter((s) => s.id !== id).map((s) => (s.id === targetId ? { ...s, ...patch } : s));
+    commit({ ...snap, sessions }, [{ type: "patchSession", id: targetId, patch }, { type: "deleteSessions", ids: [id] }]);
+    toast.success(`„${a.title}“ in „${target.title}“ aufgenommen`);
+    return true;
+  }, [commit, flush]);
+
   /**
    * Überträgt einen Block als Fortsetzung. Existiert die Folgewoche noch nicht, wird sie zuerst
    * aus der Vorlage `templateId` angelegt – sonst wäre sie danach leer und liesse sich nicht
@@ -381,7 +427,7 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
   return {
     snapshot, loadError, saveState, onlineUserIds, me, role, isCoordinator: role === "koordination",
     reload, flush,
-    updateSession, addSession, removeSession, moveSession, carryForward, createWeekFromTemplate, updateDay,
+    updateSession, addSession, removeSession, moveSession, swapSessions, replaceSession, appendSession, carryForward, createWeekFromTemplate, updateDay,
     updateGroup, addGroup, removeGroup, updateTeacher, addTeacher, updateTemplate, renameTeam, updateMember, removeMember,
     regenerateJoinCode, resetDemo: backend.reset ? resetDemo : undefined,
   };

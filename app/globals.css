@@ -333,3 +333,10 @@ button, input, textarea { font: inherit; } button { cursor: pointer; }
 .merge-row { display: grid; grid-template-columns: 16px 1fr; align-items: center; gap: 8px; margin: 6px 0 4px; color: #5b7088; }
 .responsibility-block.is-merged { background: #f3f6f9; border-style: dashed; }
 .merge-hint { margin: 4px 0 0; color: #5b7088; font-size: 12px; line-height: 1.4; }
+
+/* Nachfrage beim Verschieben auf einen belegten Platz */
+.move-options { display: grid; gap: 8px; }
+.move-option { display: grid; grid-template-columns: 34px 1fr; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: #fff; text-align: left; color: inherit; transition: .12s ease; }
+.move-option:hover { background: #f3f7fa; border-color: #b9cbdb; } .move-option strong { display: block; font-size: 14px; } .move-option small { display: block; margin-top: 2px; color: #6d7e90; font-size: 12px; line-height: 1.35; }
+.move-option-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: #e8eff5; color: #0b4a7e; } .move-option-icon svg { width: 18px; height: 18px; }
+.move-option.destructive:hover { background: #fff3f3; border-color: #e0a8ad; } .move-option.destructive .move-option-icon { background: #fbe9ea; color: #b23a44; }

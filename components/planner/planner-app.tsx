@@ -9,6 +9,7 @@ import {
 import { AdminView, MiniTemplate } from "@/components/planner/admin-view";
 import { DayView } from "@/components/planner/day-view";
 import { LessonSheet } from "@/components/planner/lesson-sheet";
+import { MoveDialog, type MoveConflict } from "@/components/planner/move-dialog";
 import { OwlLogo } from "@/components/planner/owl-logo";
 import { Splash } from "@/components/planner/splash";
 import { WeekGrid } from "@/components/planner/week-grid";
@@ -65,6 +66,7 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
   const [viewOverride, setViewOverride] = useState<string | null>(null);
   const [templateOverride, setTemplateOverride] = useState<string | null>(null);
   const [sheetSessionId, setSheetSessionId] = useState<string | null>(null);
+  const [moveConflict, setMoveConflict] = useState<MoveConflict | null>(null);
   const [tourOpen, setTourOpen] = useState(() => initialTourOpen(userId));
 
   if (api.loadError) {
@@ -121,6 +123,15 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
     }
     setTourOpen(open);
   }
+
+  /** Verschieben: leerer Platz → direkt; belegter Platz → nachfragen (dazwischen, tauschen, ersetzen, anhängen). */
+  const requestMove = (sessionId: string, day: DayKey, slot: number) => {
+    const session = snapshot.sessions.find((s) => s.id === sessionId);
+    if (!session) return;
+    const target = snapshot.sessions.find((s) => s.id !== sessionId && s.weekStart === session.weekStart && s.templateId === session.templateId && s.day === day && s.slot === slot);
+    if (!target) { api.moveSession(sessionId, day, slot); return; }
+    setMoveConflict({ session, target, day, slot });
+  };
 
   const onlineTeachers = api.onlineUserIds
     .map((id) => snapshot.members.find((m) => m.userId === id))
@@ -273,7 +284,7 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
                 viewerId={selectedView}
                 onOpen={openWeekCell}
                 onDayHeaderClick={handleDayHeaderClick}
-                onMove={(sessionId, day, slot) => api.moveSession(sessionId, day, slot)}
+                onMove={requestMove}
               />
             </>
           )}
@@ -317,7 +328,21 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
         snapshot={snapshot}
         isCoordinator={api.isCoordinator}
         templateId={selectedTemplateId}
+        onRequestMove={requestMove}
         onOpenChange={(open) => !open && setSheetSessionId(null)}
+      />
+      <MoveDialog
+        conflict={moveConflict}
+        onClose={() => setMoveConflict(null)}
+        onChoose={(action) => {
+          if (!moveConflict) return;
+          const { session, target, day, slot } = moveConflict;
+          setMoveConflict(null);
+          if (action === "insert") api.moveSession(session.id, day, slot);
+          else if (action === "swap") api.swapSessions(session.id, target.id);
+          else if (action === "replace") api.replaceSession(session.id, target.id);
+          else if (action === "append") { api.appendSession(session.id, target.id); setSheetSessionId(null); }
+        }}
       />
       <WelcomeTour open={tourOpen} onOpenChange={closeTour} role={api.role} joinCode={snapshot.team.joinCode} />
       <Toaster richColors position="bottom-center" />
