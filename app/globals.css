@@ -383,3 +383,10 @@ button, input, textarea { font: inherit; } button { cursor: pointer; }
 .kid-chip button { display: grid; place-items: center; width: 18px; height: 18px; border: 0; border-radius: 50%; background: #d9e3ec; color: #3f5670; } .kid-chip button:hover { background: #c94e58; color: #fff; }
 .kid-picker { margin: 0; padding: 6px; list-style: none; display: grid; gap: 2px; max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; background: #fbfcfe; }
 .kid-picker label { display: grid; grid-template-columns: 18px 1fr auto auto; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 8px; font-size: 13px; } .kid-picker label:hover { background: #eef3f7; }
+
+/* Textfeld mit Vorschlagsliste */
+.suggest-wrap { position: relative; min-width: 0; }
+.suggest-list { position: absolute; z-index: 70; left: 0; right: 0; top: calc(100% + 4px); margin: 0; padding: 4px; list-style: none; max-height: 240px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; background: #fff; box-shadow: 0 12px 32px #1d3d5b22; }
+.suggest-list li { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 6px 9px; border-radius: 7px; font-size: 13px; cursor: pointer; }
+.suggest-list li.is-active { background: #e8eff5; } .suggest-list li small { color: #7b8c9e; font-size: 11px; white-space: nowrap; }
+.kid-search { margin-bottom: 8px; }

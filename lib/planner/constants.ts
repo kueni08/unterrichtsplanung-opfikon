@@ -51,6 +51,12 @@ export const slotKind = (slot: number): SlotKind => SLOTS[slot]?.kind ?? "lesson
 /** Alle Slot-Indizes einer Art in chronologischer Reihenfolge */
 export const slotsOfKind = (kind: SlotKind): number[] => SLOTS.map((s, i) => (s.kind === kind ? i : -1)).filter((i) => i >= 0);
 
+/** Fächer als Vorauswahl (Lehrplan 21, Zyklus 2) – freie Eingaben bleiben möglich */
+export const SUBJECT_PRESETS = [
+  "Deutsch", "Mathe", "NMG", "Englisch", "Französisch", "Musik", "BG", "TTG", "Sport", "Schwimmen",
+  "RKE", "M&I", "Projekt", "Atelier", "Klassenrat", "Lesen", "Wochenplan",
+];
+
 export const GROUP_PALETTE = ["#E98F82", "#6FAFD4", "#78B99A", "#D8A653", "#A98BC4", "#5EB9B2"];
 export const TEACHER_PALETTE = ["#795A9D", "#C57953", "#347A78", "#4D699F", "#B5577A", "#5E8A3A"];
 export const WHOLE_CLASS_COLOR = "#A98BC4";

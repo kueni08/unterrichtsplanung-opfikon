@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { filterSuggestions } from "@/components/ui/suggest-input";
 import { childrenOfGroup, fullName, parseDelimited, rowsToChildren } from "@/lib/planner/children";
 import type { PlannerApi } from "@/hooks/use-planner";
 import type { Child, Group } from "@/lib/planner/types";
@@ -18,8 +19,12 @@ export function ChildrenCard({ api, kids, groups }: { api: PlannerApi; kids: Chi
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
-  const sorted = [...kids].sort(byName);
+  const sortedAll = [...kids].sort(byName);
+  const sorted = query.trim()
+    ? filterSuggestions(sortedAll.map((c) => ({ value: c.id, label: `${c.firstName} ${c.lastName}`, hint: c.short })), query, 500).map((s) => sortedAll.find((c) => c.id === s.value)!)
+    : sortedAll;
 
   function handleAdd() {
     if (!firstName.trim() && !lastName.trim()) return;
@@ -63,7 +68,8 @@ export function ChildrenCard({ api, kids, groups }: { api: PlannerApi; kids: Chi
         <Button type="button" variant="outline" size="sm" onClick={() => fileInput.current?.click()}><FileSpreadsheet size={15} /> Aus Excel / CSV importieren</Button>
         <small>Spalten „Vorname“, „Nachname“, optional „Klasse“. Vorhandene Namen werden übersprungen.</small>
       </div>
-      {sorted.length === 0
+      {sortedAll.length > 8 && <Input className="kid-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Suchen … (z. B. „pa“ für Patrick, Pascal)" aria-label="Kinder suchen" />}
+      {sortedAll.length === 0
         ? <p className="kids-empty">Noch keine Kinder erfasst. Solange die Liste leer ist, gelten die Kürzel-Felder der Gruppen.</p>
         : (
           <ul className="kid-list" aria-label="Kinder">
@@ -93,7 +99,7 @@ export function ChildrenCard({ api, kids, groups }: { api: PlannerApi; kids: Chi
             })}
           </ul>
         )}
-      <p className="kids-count">{sorted.length} Kinder · {sorted.filter((c) => !c.groupId).length} ohne Gruppe</p>
+      <p className="kids-count">{sortedAll.length} Kinder · {sortedAll.filter((c) => !c.groupId).length} ohne Gruppe</p>
     </article>
   );
 }
@@ -101,8 +107,12 @@ export function ChildrenCard({ api, kids, groups }: { api: PlannerApi; kids: Chi
 /** Kinder einer Gruppe: Chips zum Entfernen und Auswahl per Checkbox aus der Stammliste. */
 export function GroupChildrenPicker({ api, group, kids, groups }: { api: PlannerApi; group: Group; kids: Child[]; groups: Group[] }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const members = childrenOfGroup(kids, group.id);
-  const all = [...kids].filter((c) => c.active).sort(byName);
+  const sortedAll = [...kids].filter((c) => c.active).sort(byName);
+  const all = query.trim()
+    ? filterSuggestions(sortedAll.map((c) => ({ value: c.id, label: `${c.firstName} ${c.lastName}`, hint: c.short })), query, 200).map((s) => sortedAll.find((c) => c.id === s.value)!)
+    : sortedAll;
   const selected = new Set(members.map((c) => c.id));
 
   function toggle(child: Child, on: boolean) {
@@ -128,6 +138,9 @@ export function GroupChildrenPicker({ api, group, kids, groups }: { api: Planner
         </div>
       )}
       {open && (
+        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Suchen … (z. B. „pa“)" aria-label="Kinder filtern" autoFocus />
+      )}
+      {open && (
         <ul className="kid-picker" aria-label={`Kinder für ${group.name} auswählen`}>
           {all.map((c) => {
             const other = c.groupId && c.groupId !== group.id ? groups.find((g) => g.id === c.groupId) : null;
@@ -142,7 +155,7 @@ export function GroupChildrenPicker({ api, group, kids, groups }: { api: Planner
               </li>
             );
           })}
-          {all.length === 0 && <li className="kids-empty">Zuerst Kinder in der Stammliste erfassen.</li>}
+          {all.length === 0 && <li className="kids-empty">{sortedAll.length === 0 ? "Zuerst Kinder in der Stammliste erfassen." : "Kein Kind passt zur Suche."}</li>}
         </ul>
       )}
     </div>
