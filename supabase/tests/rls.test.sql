@@ -152,6 +152,17 @@ delete from public.teams;
 select pg_temp.expect((select count(*) from public.sessions) + (select count(*) from public.team_members) = 0, 'Kaskadierendes Löschen');
 
 -- 6) Realtime-Publication enthält alle Tabellen
-select pg_temp.expect((select count(*) from pg_publication_tables where pubname = 'supabase_realtime') = 7, 'Realtime für 7 Tabellen aktiv');
+select pg_temp.expect((select count(*) from pg_publication_tables where pubname = 'supabase_realtime') = 8, 'Realtime für 8 Tabellen aktiv (inkl. children)');
 
 \echo 'Alle Datenbanktests bestanden.'
+
+-- 7) Kinder-Stammliste: Koordination schreibt, Lehrperson liest nur
+reset role;
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000a');
+insert into public.children (team_id, first_name, last_name, short) values (:'team_id', 'Anna', 'Muster', 'AM');
+select pg_temp.expect((select count(*) from public.children where team_id = :'team_id') = 1, 'Koordination erfasst ein Kind');
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000b');
+select pg_temp.expect((select count(*) from public.children where team_id = :'team_id') = 1, 'Lehrperson sieht die Stammliste');
+select pg_temp.expect_error(format($q$insert into public.children (team_id, first_name, last_name, short) values (%L, 'Ben', 'Keller', 'BK')$q$, :'team_id'), 'Lehrperson legt kein Kind an');
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000c');
+select pg_temp.expect((select count(*) from public.children where team_id = :'team_id') = 0, 'Fremde sehen keine Kinder');
