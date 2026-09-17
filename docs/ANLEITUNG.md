@@ -51,6 +51,7 @@ Die Termin-Zeitfenster sind gelb hinterlegt und schraffiert, damit sie sich klar
 - **Gruppen zusammenlegen**: Sollen z. B. 3. und 4. Klasse in einer Lektion gemeinsam unterrichtet werden, wählt man bei der einen Gruppe „zusammen mit …“ und die andere Gruppe als Leitgruppe. Die zusammengelegte Gruppe übernimmt automatisch Lehrperson, Co-Lehrperson, Fach und Raum der Leitgruppe; im Wochenplan erscheinen beide als eine Zeile („Gryffindor + Hufflepuff“). „Eigene Gruppe“ löst die Zusammenlegung wieder auf. Anders als „Alle Kinder“ bleibt die dritte Gruppe eigenständig planbar.
 - **Verschieben**: Ein Block lässt sich per Drag & Drop auf ein anderes Zeitfenster ziehen. Auf Tablets und Touch-Geräten steht dafür zusätzlich ein „Verschieben“-Knopf zur Verfügung. Ist der Zielplatz leer, wird direkt verschoben. Ist er belegt, fragt die App nach: **Dazwischenschieben** (die anderen Blöcke rücken nach hinten), **Tauschen** (beide Blöcke wechseln den Platz), **Als Bestandteil anhängen** (der verschobene Block geht im Zielblock auf – z. B. weil er noch nicht fertig war; Stichworte und Notizen werden übernommen) oder **Ersetzen** (der Zielblock wird gelöscht).
 - **In die nächste freie Lektion übertragen**: Eine Lektion, die nicht abgeschlossen werden konnte, lässt sich als Fortsetzung in die nächste freie Lektion derselben Woche übertragen – oder, falls die Woche voll ist, in die erste freie Lektion der nächsten Woche. Gibt es die nächste Woche noch nicht, wird sie dabei aus der oben gewählten Vorlage angelegt. Der ursprüngliche Block erhält den Status „übertragen“.
+- **Hausaufgaben & Rückblick**: Jede Lektion hat die Felder „Hausaufgaben“ (was verteilt wurde) und „Fürs nächste Mal“ (Hinweis an sich selbst oder das Team). Beim Öffnen einer Lektion zeigt der Bereich „Zuletzt in diesem Fach“ automatisch die letzten drei Lektionen desselben Fachs für dieselben Gruppen – mit Stichworten, Hausaufgaben und Notizen – sowie zuoberst die jüngste Notiz „fürs nächste Mal“. Nichts muss kopiert werden; ein Klick öffnet die frühere Lektion. Lektionen mit Hausaufgaben tragen im Wochenplan ein kleines „HA“.
 - **Status**: Jede Lektion hat einen Status (geplant, noch offen, erledigt), der auf einen Blick zeigt, wo noch etwas ansteht; „übertragen“ setzt die App beim Übertragen automatisch.
 - **Entfernen**: Ein Block lässt sich jederzeit wieder löschen.
 
@@ -73,6 +74,10 @@ Der Tagesfokus (auch per Klick auf einen Tageskopf im Wochenplan) zeigt den Tag 
 - **Anwesenheit**: Welche Lehrpersonen an diesem Tag im Einsatz sind.
 - **Tagesnotiz**: Ein freies Textfeld für Besonderheiten des Tages (z. B. Besuche, Raumwechsel, Absenzen).
 - **Sitzungen**: Bis zu zwei Kurznotizen mit Uhrzeit und Titel pro Tag (für Termine ausserhalb der festen Zeitfenster). Sitzungen mit Teilnehmenden und Einladung werden im Wochenplan in den Mittag- und Abend-Zeitfenstern geplant.
+
+## Hausaufgaben
+
+Der Reiter „Hausaufgaben“ zeigt je Fach die zuletzt verteilte Hausaufgabe mit Datum und Gruppen; „frühere“ klappt die älteren auf. Ein Klick öffnet die zugehörige Lektion. Die Liste entsteht automatisch aus dem Feld „Hausaufgaben“ der Lektionen.
 
 ## Drucken
 

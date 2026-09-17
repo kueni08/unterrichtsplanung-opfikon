@@ -27,7 +27,7 @@ const toMember = (r: Row): Member => ({
 const toSession = (r: Row): Session => ({
   id: String(r.id), weekStart: (r.week_start as string | null) ?? null, templateId: (r.template_id as string | null) ?? null,
   day: r.day as DayKey, slot: Number(r.slot), title: String(r.title ?? ""), focus: String(r.focus ?? ""),
-  room: String(r.room ?? ""), notes: String(r.notes ?? ""), children: String(r.children ?? ""),
+  room: String(r.room ?? ""), notes: String(r.notes ?? ""), homework: String(r.homework ?? ""), nextTime: String(r.next_time ?? ""), children: String(r.children ?? ""),
   wholeClass: Boolean(r.whole_class), status: r.status as SessionStatus,
   assignments: Array.isArray(r.assignments) ? (r.assignments as Assignment[]) : [],
 });
@@ -36,12 +36,13 @@ export function sessionToRow(s: Session, teamId: string): Row {
   return {
     id: s.id, team_id: teamId, week_start: s.weekStart, template_id: s.templateId, day: s.day, slot: s.slot,
     title: s.title.slice(0, 120), focus: s.focus.slice(0, 200), room: s.room.slice(0, 80), notes: s.notes.slice(0, 4000),
+    homework: s.homework.slice(0, 2000), next_time: s.nextTime.slice(0, 2000),
     children: s.children.slice(0, 1000), whole_class: s.wholeClass, status: s.status, assignments: s.assignments,
   };
 }
 
 const PATCHABLE: Partial<Record<keyof Session, string>> = {
-  title: "title", focus: "focus", room: "room", notes: "notes", children: "children",
+  title: "title", focus: "focus", room: "room", notes: "notes", homework: "homework", nextTime: "next_time", children: "children",
   wholeClass: "whole_class", status: "status", assignments: "assignments", day: "day", slot: "slot",
 };
 

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CalendarArrowDown, Check, CircleAlert, CopyPlus, Mail, Trash2, UsersRound } from "lucide-react";
 
+import { LessonHistory } from "@/components/planner/lesson-history";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -23,7 +24,7 @@ const STATUS_OPTIONS: { value: SessionStatus; label: string }[] = [
   { value: "done", label: "Erledigt" },
 ];
 
-export function LessonSheet({ session, api, snapshot, isCoordinator, templateId, onRequestMove, onOpenChange }: {
+export function LessonSheet({ session, api, snapshot, isCoordinator, templateId, onRequestMove, onOpenSession, onOpenChange }: {
   session: Session | null;
   api: PlannerApi;
   snapshot: PlannerSnapshot;
@@ -32,6 +33,8 @@ export function LessonSheet({ session, api, snapshot, isCoordinator, templateId,
   templateId?: string;
   /** Verschieben läuft über die App, damit bei belegtem Ziel nachgefragt wird */
   onRequestMove?: (sessionId: string, day: DayKey, slot: number) => void;
+  /** Eine frühere Lektion aus dem Rückblick öffnen */
+  onOpenSession?: (sessionId: string) => void;
   onOpenChange: (open: boolean) => void;
 }) {
   const [confirmRemove, setConfirmRemove] = useState(false);
@@ -210,7 +213,14 @@ export function LessonSheet({ session, api, snapshot, isCoordinator, templateId,
             </>
           )}
           {!isMeeting && <div className="field-stack"><Label htmlFor="children">Abweichende Kinderzuordnung</Label><Textarea id="children" disabled={readOnly} value={session.children} onChange={(e) => patch({ children: e.target.value })} placeholder="Nur Kürzel, z. B. A04 heute in Gruppe 2" rows={3} /></div>}
+          {!isMeeting && kind === "week" && <LessonHistory all={snapshot.sessions} current={session} onOpen={onOpenSession} />}
           <div className="field-stack"><Label htmlFor="notes">{isMeeting ? "Traktanden & Notizen" : "Notizen & Material"}</Label><Textarea id="notes" disabled={readOnly} value={session.notes} onChange={(e) => patch({ notes: e.target.value })} placeholder={isMeeting ? "Traktanden, Vorbereitung, Beschlüsse …" : "Aufträge, Material, Beobachtungen, Links …"} rows={5} /></div>
+          {!isMeeting && kind === "week" && (
+            <div className="two-fields">
+              <div className="field-stack"><Label htmlFor="homework">Hausaufgaben</Label><Textarea id="homework" disabled={readOnly} value={session.homework} onChange={(e) => patch({ homework: e.target.value })} placeholder="z. B. Arbeitsblatt S. 12, Nr. 1–4" rows={3} /></div>
+              <div className="field-stack"><Label htmlFor="next-time">Fürs nächste Mal</Label><Textarea id="next-time" disabled={readOnly} value={session.nextTime} onChange={(e) => patch({ nextTime: e.target.value })} placeholder="Erscheint automatisch in der nächsten Lektion dieses Fachs" rows={3} /></div>
+            </div>
+          )}
           {isMeeting && kind === "week" && invite && (
             <section className="invite-panel" aria-label="Einladung">
               <h4><Mail size={15} /> Einladung versenden</h4>

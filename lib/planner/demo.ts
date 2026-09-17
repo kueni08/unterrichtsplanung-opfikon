@@ -155,7 +155,7 @@ export function buildStarterContent(
     : { groupId: group.id, teacherId: idOf[cell.teachers[0]], ...(cell.teachers[1] ? { coTeacherId: idOf[cell.teachers[1]] } : {}), subject: cell.subject, ...(cell.room ? { room: cell.room } : {}) };
 
   const timetable: Session[] = KASTANIE.map((entry) => {
-    const base = { id: newId(), weekStart: null, templateId: templates[0].id, day: entry.day, slot: entry.slot, children: "", status: "planned" as const };
+    const base = { id: newId(), weekStart: null, templateId: templates[0].id, day: entry.day, slot: entry.slot, children: "", homework: "", nextTime: "", status: "planned" as const };
     if ("all" in entry) {
       const cell = entry.all;
       const assignments = groups.map((g) => {
@@ -178,7 +178,7 @@ export function buildStarterContent(
   });
 
   const project: Session[] = PROJECT_WEEK.map(([day, slot, title, focus, room, plan]) => ({
-    id: newId(), weekStart: null, templateId: templates[1].id, day, slot, title, focus, room, notes: "", children: "", status: "planned",
+    id: newId(), weekStart: null, templateId: templates[1].id, day, slot, title, focus, room, notes: "", homework: "", nextTime: "", children: "", status: "planned",
     wholeClass: plan === "all",
     assignments: groups.map((g, i) => ({ groupId: g.id, teacherId: idOf[plan === "all" ? (["Dani", "Andrea", "Coni"] as T[])[i] : plan[i]] })),
   }));

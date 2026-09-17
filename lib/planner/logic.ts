@@ -254,7 +254,7 @@ export function planningWarnings(sessions: Session[], groups: Group[], teachers:
 
 export function makeSession(partial: Partial<Session> & Pick<Session, "day" | "slot">): Session {
   return {
-    id: newId(), weekStart: null, templateId: null, title: "Neue Lektion", focus: "", room: "", notes: "",
+    id: newId(), weekStart: null, templateId: null, title: "Neue Lektion", focus: "", room: "", notes: "", homework: "", nextTime: "",
     children: "", wholeClass: false, status: "planned", assignments: [], ...partial,
   };
 }
@@ -266,8 +266,73 @@ export function defaultAssignments(groups: Group[], teachers: Teacher[]): Assign
 
 export function cloneTemplateToWeek(templateSessions: Session[], weekStart: string): Session[] {
   return templateSessions.map((s) => ({
-    ...s, id: newId(), weekStart, templateId: null, status: "planned", notes: s.notes, assignments: s.assignments.map((a) => ({ ...a })),
+    ...s, id: newId(), weekStart, templateId: null, status: "planned", notes: s.notes, homework: "", nextTime: "", assignments: s.assignments.map((a) => ({ ...a })),
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Verlauf pro Fach: Rückblick auf frühere Lektionen und Hausaufgaben
+// ---------------------------------------------------------------------------
+
+/** Fächer einer Lektion: die Fächer der Gruppen, sonst der Titel. */
+export function subjectsOf(session: Session): string[] {
+  const fromGroups = [...new Set(resolveAssignments(session.assignments).filter((a) => !a.off && a.subject).map((a) => (a.subject as string).trim()))];
+  const list = fromGroups.length ? fromGroups : [session.title.trim()];
+  return list.filter(Boolean);
+}
+
+/** Gruppen, die in dieser Lektion tatsächlich Unterricht haben (leer = nicht bestimmbar → passt zu allem). */
+function groupsOf(session: Session): Set<string> {
+  if (session.wholeClass) return new Set();
+  return new Set(resolveAssignments(session.assignments).filter((a) => !a.off && a.groupId).map((a) => a.groupId));
+}
+
+const norm = (s: string) => s.trim().toLowerCase();
+
+/** Chronologische Position einer Lektion innerhalb aller Wochen (nur für Wochenlektionen). */
+export function sessionOrderKey(s: Session): string {
+  const dayIndex = DAYS.findIndex((d) => d.id === s.day);
+  return `${s.weekStart ?? ""}-${dayIndex}-${String(s.slot).padStart(2, "0")}`;
+}
+
+/**
+ * Frühere Lektionen desselben Fachs (und – sofern bestimmbar – mit mindestens einer gemeinsamen Gruppe),
+ * neueste zuerst. Vorlagenbausteine und die Lektion selbst zählen nicht.
+ */
+export function previousLessons(all: Session[], current: Session, limit = 3): Session[] {
+  if (!current.weekStart) return [];
+  const subjects = new Set(subjectsOf(current).map(norm));
+  if (subjects.size === 0) return [];
+  const groups = groupsOf(current);
+  const key = sessionOrderKey(current);
+  return all
+    .filter((s) => s.weekStart && s.id !== current.id && !isMeetingSlot(s.slot) && sessionOrderKey(s) < key)
+    .filter((s) => subjectsOf(s).some((x) => subjects.has(norm(x))))
+    .filter((s) => {
+      const g = groupsOf(s);
+      return groups.size === 0 || g.size === 0 || [...g].some((id) => groups.has(id));
+    })
+    .sort((a, b) => (sessionOrderKey(a) < sessionOrderKey(b) ? 1 : -1))
+    .slice(0, limit);
+}
+
+export type HomeworkEntry = { subject: string; session: Session; groupIds: string[] };
+
+/** Alle verteilten Hausaufgaben, je Fach neueste zuerst. */
+export function homeworkBySubject(all: Session[]): Map<string, HomeworkEntry[]> {
+  const result = new Map<string, HomeworkEntry[]>();
+  const withHomework = all
+    .filter((s) => s.weekStart && s.homework.trim())
+    .sort((a, b) => (sessionOrderKey(a) < sessionOrderKey(b) ? 1 : -1));
+  for (const session of withHomework) {
+    for (const subject of subjectsOf(session)) {
+      const k = norm(subject);
+      const list = result.get(k) ?? [];
+      list.push({ subject, session, groupIds: [...groupsOf(session)] });
+      result.set(k, list);
+    }
+  }
+  return result;
 }
 
 export function setAssignment(assignments: Assignment[], groupId: string, patch: Partial<Assignment>): Assignment[] {
