@@ -33,6 +33,7 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
   const failed = useRef(false);
   const timers = useRef(new Map<string, { timer: ReturnType<typeof setTimeout>; run: () => void }>());
   const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleReloadRef = useRef<(delay?: number) => void>(() => {});
 
   const setSnapshot = useCallback((next: PlannerSnapshot) => {
     snapRef.current = next;
@@ -49,14 +50,17 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     }
   }, [backend, setSnapshot]);
 
+  // `scheduleReloadRef` gibt der verzögerten Selbstwiederholung immer die aktuelle
+  // Fassung von `scheduleReload`, statt eine veraltete Closure einzufangen.
   const scheduleReload = useCallback((delay = 350) => {
     if (reloadTimer.current) clearTimeout(reloadTimer.current);
     reloadTimer.current = setTimeout(() => {
       reloadTimer.current = null;
-      if (pending.current > 0 || timers.current.size > 0) { scheduleReload(600); return; }
+      if (pending.current > 0 || timers.current.size > 0) { scheduleReloadRef.current(600); return; }
       void reload();
     }, delay);
   }, [reload]);
+  useEffect(() => { scheduleReloadRef.current = scheduleReload; });
 
   const enqueue = useCallback((op: PersistOp) => {
     pending.current += 1;
