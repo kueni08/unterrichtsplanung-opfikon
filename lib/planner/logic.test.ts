@@ -7,10 +7,15 @@ import {
   carryForwardTarget,
   cloneTemplateToWeek,
   countChildren,
+  daysFromTemplate,
+  deriveTitle,
   initialsFrom,
+  isVisibleFor,
   normalizeDays,
   planningWarnings,
   reorderSessions,
+  sessionTeacherIds,
+  setAssignment,
 } from "./logic.ts";
 import { buildDemoSnapshot, buildStarterContent, DEMO_USERS } from "./demo.ts";
 
@@ -218,18 +223,75 @@ test("planningWarnings: flags an open (unassigned) group", () => {
   assert.deepEqual(warnings, ["Testlektion: Zuständigkeit noch offen."]);
 });
 
-test("planningWarnings: flags the same teacher assigned to two groups", () => {
+test("planningWarnings: flags the same teacher teaching two groups different subjects", () => {
   const teachers = [makeTeacher(), makeTeacher(), makeTeacher()];
   const groups = [makeGroup(), makeGroup()];
   const session = makeSession("s1", "mo", 0, {
     title: "Testlektion",
     assignments: [
-      { groupId: groups[0].id, teacherId: teachers[0].id },
-      { groupId: groups[1].id, teacherId: teachers[0].id },
+      { groupId: groups[0].id, teacherId: teachers[0].id, subject: "Englisch" },
+      { groupId: groups[1].id, teacherId: teachers[0].id, subject: "Mathe" },
     ],
   });
   const warnings = planningWarnings([session], groups, teachers);
-  assert.deepEqual(warnings, ["Testlektion: Eine Lehrperson ist mehreren Gruppen zugeteilt."]);
+  assert.deepEqual(warnings, ["Testlektion: Eine Lehrperson ist gleichzeitig mehreren Gruppen mit unterschiedlichem Unterricht zugeteilt."]);
+});
+
+test("planningWarnings: same teacher, same subject for two groups (gemeinsamer Unterricht) is fine", () => {
+  const teachers = [makeTeacher(), makeTeacher(), makeTeacher()];
+  const groups = [makeGroup(), makeGroup()];
+  const session = makeSession("s1", "mo", 0, {
+    title: "Sport",
+    assignments: [
+      { groupId: groups[0].id, teacherId: teachers[0].id, subject: "Sport" },
+      { groupId: groups[1].id, teacherId: teachers[0].id, subject: "Sport" },
+    ],
+  });
+  assert.deepEqual(planningWarnings([session], groups, teachers), []);
+});
+
+test("planningWarnings: groups marked off need no teacher", () => {
+  const teachers = [makeTeacher(), makeTeacher(), makeTeacher()];
+  const groups = [makeGroup(), makeGroup()];
+  const session = makeSession("s1", "mo", 0, {
+    title: "M&I",
+    assignments: [
+      { groupId: groups[0].id, teacherId: "", off: true },
+      { groupId: groups[1].id, teacherId: teachers[1].id, subject: "M&I" },
+    ],
+  });
+  assert.deepEqual(planningWarnings([session], groups, teachers), []);
+});
+
+test("isVisibleFor / sessionTeacherIds consider co-teachers and ignore free groups", () => {
+  const session = makeSession("s1", "mo", 0, {
+    assignments: [
+      { groupId: "g1", teacherId: "a", coTeacherId: "b" },
+      { groupId: "g2", teacherId: "c", off: true },
+    ],
+  });
+  assert.equal(isVisibleFor(session, "b"), true);
+  assert.equal(isVisibleFor(session, "c"), false);
+  assert.deepEqual(sessionTeacherIds(session), ["a", "b"]);
+});
+
+test("deriveTitle and setAssignment", () => {
+  const list = setAssignment([{ groupId: "g1", teacherId: "a", subject: "Englisch" }], "g2", { teacherId: "b", subject: "Französisch", room: "" });
+  assert.deepEqual(list.find((a) => a.groupId === "g2"), { groupId: "g2", teacherId: "b", subject: "Französisch" });
+  assert.equal(deriveTitle(list, "x"), "Englisch · Französisch");
+  assert.equal(deriveTitle([{ groupId: "g1", teacherId: "", off: true }], "Fallback"), "Fallback");
+  const off = setAssignment(list, "g1", { off: true });
+  assert.equal(off.find((a) => a.groupId === "g1")?.off, true);
+  const on = setAssignment(off, "g1", { off: false });
+  assert.equal("off" in (on.find((a) => a.groupId === "g1") ?? {}), false);
+});
+
+test("daysFromTemplate keeps attendance of known teachers only", () => {
+  const t1 = makeTeacher();
+  const days = daysFromTemplate({ mo: { attendance: [t1.id, "unknown"], note: "Hinweis", meetings: [] } }, [t1]);
+  assert.deepEqual(days.mo.attendance, [t1.id]);
+  assert.equal(days.mo.note, "Hinweis");
+  assert.deepEqual(days.di.attendance, [t1.id]);
 });
 
 test("planningWarnings: flags an assigned teacher who is inactive", () => {
@@ -378,7 +440,7 @@ test("cloneTemplateToWeek: assigns new ids, sets weekStart, clears templateId, r
 // ---------------------------------------------------------------------------
 
 test("buildStarterContent: sessions never collide on (day, slot) within the same template", () => {
-  const { sessions } = buildStarterContent(["t1", "t2", "t3", "t4"]);
+  const { sessions } = buildStarterContent([]);
   const seen = new Map<string, Set<string>>();
   for (const s of sessions) {
     const key = String(s.templateId);
@@ -391,7 +453,7 @@ test("buildStarterContent: sessions never collide on (day, slot) within the same
 });
 
 test("buildStarterContent: all ids (groups, templates, sessions) are unique", () => {
-  const { groups, templates, sessions } = buildStarterContent(["t1", "t2", "t3"]);
+  const { groups, templates, sessions } = buildStarterContent([]);
   const ids = [...groups.map((g) => g.id), ...templates.map((t) => t.id), ...sessions.map((s) => s.id)];
   assert.equal(new Set(ids).size, ids.length);
 });
@@ -418,4 +480,22 @@ test("buildDemoSnapshot: demo users reference members that exist in the snapshot
   const userIds = new Set(snapshot.members.map((m) => m.userId));
   assert.ok(userIds.has(DEMO_USERS.koordination.userId));
   assert.ok(userIds.has(DEMO_USERS.lehrperson.userId));
+});
+
+test("buildStarterContent: Stundenplan Kastanie with 5 teachers, classes 3–5, founder linked by first name", () => {
+  const founder = makeTeacher({ name: "Andrea Muster" });
+  const { teachers, groups, templates, sessions } = buildStarterContent([founder]);
+  assert.deepEqual(teachers.map((t) => t.name), ["Dani", "Klara", "Nici", "Coni"]);
+  assert.deepEqual(groups.map((g) => g.name), ["3. Klasse", "4. Klasse", "5. Klasse"]);
+  assert.equal(templates[0].name, "Stundenplan Kastanie SJ 26/27");
+  const main = sessions.filter((x) => x.templateId === templates[0].id);
+  assert.equal(main.length, 31);
+  assert.ok(main.every((x) => x.slot >= 0 && x.slot < 7));
+  const monday4 = main.find((x) => x.day === "mo" && x.slot === 3);
+  assert.equal(monday4?.title, "Englisch · Französisch");
+  assert.ok(monday4?.assignments.some((a) => a.teacherId === founder.id && a.room === "Kreis"));
+  assert.equal(templates[0].days?.mi?.note, "Klara: PICTS");
+  const allTeacherIds = new Set([founder.id, ...teachers.map((t) => t.id)]);
+  assert.ok(main.every((x) => x.assignments.every((a) => a.off || allTeacherIds.has(a.teacherId))));
+  assert.deepEqual(planningWarnings(main, groups, [founder, ...teachers]), []);
 });

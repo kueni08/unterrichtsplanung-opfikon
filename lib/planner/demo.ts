@@ -1,102 +1,175 @@
-import { cloneTemplateToWeek, emptyDays, newId } from "./logic.ts";
-import type { Assignment, DayKey, Group, PlannerSnapshot, Session, Teacher, Template } from "./types.ts";
+import { TEACHER_PALETTE } from "./constants.ts";
+import { cloneTemplateToWeek, daysFromTemplate, deriveTitle, initialsFrom, newId } from "./logic.ts";
+import type { Assignment, DayKey, Group, PlannerSnapshot, Session, Teacher, Template, WeekDays } from "./types.ts";
 
-type Row = [DayKey, number, string, string, string, number[] | "all"];
+/**
+ * Standardinhalt gemäss „Vorlage Stundenplan Kastanie SJ26/27“.
+ * Kürzel der Kinder sind Platzhalter und werden im Admin-Bereich angepasst.
+ */
 
-const RULE_WEEK: Row[] = [
-  ["mo", 0, "Wochenstart", "Ankommen · Ausblick", "Lernatelier", "all"],
-  ["mo", 1, "Mathe-Werkstatt", "Zahlenräume", "Räume 1–3", [0, 1, 2]],
-  ["mo", 2, "Deutsch", "Lesespuren", "Räume 1–3", [1, 0, 2]],
-  ["mo", 5, "NMG", "Lebensräume", "Atelier", [2, 1, 0]],
-  ["di", 0, "Lernzeit", "Individuelle Ziele", "Lernatelier", [1, 2, 0]],
-  ["di", 1, "Mathematik", "Strategien", "Räume 1–3", [0, 1, 2]],
-  ["di", 3, "Sport", "Kooperation", "Turnhalle", "all"],
-  ["di", 6, "Gestalten", "Farbe & Form", "Werkraum", [3, 1, 0]],
-  ["mi", 0, "Deutsch", "Schreibkonferenz", "Räume 1–3", [0, 1, 2]],
-  ["mi", 1, "Förderband", "Lesen · DaZ · Mathe", "Förderräume", [3, 1, 2]],
-  ["mi", 3, "Klassenrat", "Gemeinschaft", "Lernatelier", "all"],
-  ["do", 0, "Mathematik", "Üben & vertiefen", "Räume 1–3", [0, 1, 2]],
-  ["do", 2, "NMG-Projekt", "Forscherauftrag", "Atelier", [2, 0, 1]],
-  ["do", 5, "Musik", "Rhythmus", "Musikraum", "all"],
-  ["fr", 0, "Lernzeit", "Wochenziele", "Lernatelier", [1, 0, 3]],
-  ["fr", 1, "Deutsch", "Präsentieren", "Räume 1–3", [0, 1, 2]],
-  ["fr", 3, "Wochenabschluss", "Rückblick", "Lernatelier", "all"],
+export const KASTANIE_TEACHERS = ["Dani", "Andrea", "Klara", "Nici", "Coni"] as const;
+type T = (typeof KASTANIE_TEACHERS)[number];
+
+/** Zelle: Fach, Raum, Lehrperson(en) – oder "frei" */
+type Cell = { subject: string; room?: string; teachers: T[]; focus?: string; notes?: string } | "frei";
+/** Eintrag: entweder gemeinsam für alle Klassen oder pro Klasse [3., 4., 5.] */
+type Entry = { day: DayKey; slot: number } & ({ all: Exclude<Cell, "frei"> } | { perGroup: [Cell, Cell, Cell] });
+
+const c = (subject: string, teachers: T[], room?: string, extra: { focus?: string; notes?: string } = {}): Exclude<Cell, "frei"> => ({ subject, room, teachers, ...extra });
+const F = "frei" as const;
+
+const KASTANIE: Entry[] = [
+  // Montag
+  { day: "mo", slot: 0, perGroup: [F, F, c("M&I", ["Klara"])] },
+  { day: "mo", slot: 1, all: c("NMG", ["Dani"], undefined, { focus: "Ankommen · Singen mit allen", notes: "Dani hat Lead (mit Gitarre)." }) },
+  { day: "mo", slot: 2, all: c("Mathe", ["Dani"]) },
+  ...[3, 4].map((slot) => ({ day: "mo" as const, slot, perGroup: [c("Englisch", ["Klara"], "Atelier"), c("Englisch", ["Andrea"], "Kreis"), c("Französisch", ["Dani"], "F.bank")] as [Cell, Cell, Cell] })),
+  { day: "mo", slot: 5, perGroup: [F, c("Mathe", ["Dani"], "Atelier"), c("Englisch", ["Klara"], "F.bank")] },
+  { day: "mo", slot: 6, perGroup: [F, c("Deutsch", ["Dani"], "Atelier"), c("Englisch", ["Klara"], "F.bank")] },
+  // Dienstag
+  { day: "di", slot: 0, perGroup: [c("Englisch", ["Klara"], "Atelier"), F, F] },
+  { day: "di", slot: 1, all: c("Musik", ["Andrea", "Dani"], undefined, { focus: "Chor" }) },
+  { day: "di", slot: 2, all: c("Mathe", ["Dani"]) },
+  { day: "di", slot: 3, all: c("BG", ["Andrea", "Klara"]) },
+  { day: "di", slot: 4, all: c("BG", ["Andrea", "Klara"]) },
+  { day: "di", slot: 5, perGroup: [c("Schwimmen", ["Klara"]), c("Sport", ["Dani", "Andrea"]), c("Sport", ["Dani", "Andrea"])] },
+  { day: "di", slot: 6, all: c("Deutsch", ["Dani", "Andrea"], undefined, { focus: "Alle · Training 20'" }) },
+  // Mittwoch
+  { day: "mi", slot: 1, all: c("RKE", ["Nici"]) },
+  { day: "mi", slot: 2, all: c("Mathe", ["Dani"]) },
+  ...[3, 4].map((slot) => ({ day: "mi" as const, slot, perGroup: [c("TTG", ["Coni"], "Atelier"), c("Sport", ["Andrea", "Dani"]), c("Sport", ["Andrea", "Dani"])] as [Cell, Cell, Cell] })),
+  // Donnerstag
+  { day: "do", slot: 0, perGroup: [F, c("Englisch", ["Andrea"]), c("Deutsch", ["Coni"], "Atelier")] },
+  { day: "do", slot: 1, all: c("Deutsch", ["Coni"]) },
+  { day: "do", slot: 2, all: c("NMG", ["Andrea", "Dani"]) },
+  { day: "do", slot: 3, perGroup: [c("Mathe", ["Dani"], "Kreis+"), c("TTG", ["Coni"], "Atelier"), c("Mathe", ["Andrea"], "F.bank")] },
+  { day: "do", slot: 4, perGroup: [c("Deutsch", ["Andrea"], "Kreis+"), c("TTG", ["Coni"], "Atelier"), c("Französisch", ["Dani"], "F.bank")] },
+  { day: "do", slot: 5, all: c("NMG", ["Andrea", "Dani"]) },
+  { day: "do", slot: 6, all: c("NMG", ["Andrea", "Dani"]) },
+  // Freitag
+  { day: "fr", slot: 1, all: c("Deutsch", ["Coni"]) },
+  { day: "fr", slot: 2, perGroup: [c("Deutsch", ["Coni"], "Atelier"), c("Musik", ["Andrea"], "Aula"), c("Mathe", ["Dani"], "Kreis+")] },
+  { day: "fr", slot: 3, perGroup: [c("Musik", ["Andrea"], "Aula"), c("Mathe", ["Dani"], "Kreis+"), c("Deutsch", ["Coni"], "Atelier")] },
+  { day: "fr", slot: 4, perGroup: [c("Mathe", ["Dani"], "Kreis+"), c("Deutsch", ["Coni"], "Atelier"), c("Musik", ["Andrea"], "Aula")] },
+  ...[5, 6].map((slot) => ({ day: "fr" as const, slot, perGroup: [c("Sport", ["Dani"]), F, c("TTG", ["Coni"], "Atelier")] as [Cell, Cell, Cell] })),
 ];
 
+/** Anwesenheit laut Kopfzeile des Stundenplans */
+const KASTANIE_DAYS: Record<DayKey, { present: T[]; note?: string }> = {
+  mo: { present: ["Dani", "Andrea", "Klara"] },
+  di: { present: ["Dani", "Andrea", "Klara", "Nici"] },
+  mi: { present: ["Dani", "Andrea", "Coni", "Nici", "Klara"], note: "Klara: PICTS" },
+  do: { present: ["Dani", "Andrea", "Coni", "Nici"] },
+  fr: { present: ["Dani", "Andrea", "Coni"] },
+};
+
+type Row = [DayKey, number, string, string, string, T[] | "all"];
 const PROJECT_WEEK: Row[] = [
-  ["mo", 0, "Projekt-Kickoff", "Frage & Teams", "Lernatelier", "all"],
-  ["mo", 1, "Projektatelier", "Forschen", "Ateliers", [0, 2, 1]],
-  ["di", 0, "Projektatelier", "Planen & bauen", "Ateliers", [1, 0, 2]],
-  ["mi", 0, "Zwischenhalt", "Feedback", "Lernatelier", "all"],
-  ["do", 0, "Projektatelier", "Fertigstellen", "Ateliers", [2, 1, 0]],
-  ["fr", 1, "Präsentationen", "Zeigen & würdigen", "Aula", "all"],
+  ["mo", 1, "Projekt-Kickoff", "Frage & Teams", "Aula", "all"],
+  ["mo", 2, "Projektatelier", "Forschen", "Ateliers", ["Dani", "Andrea", "Klara"]],
+  ["di", 1, "Projektatelier", "Planen & bauen", "Ateliers", ["Andrea", "Klara", "Dani"]],
+  ["mi", 1, "Zwischenhalt", "Feedback", "Aula", "all"],
+  ["do", 1, "Projektatelier", "Fertigstellen", "Ateliers", ["Coni", "Andrea", "Dani"]],
+  ["fr", 2, "Präsentationen", "Zeigen & würdigen", "Aula", "all"],
 ];
+
+const codes = (prefix: string) => Array.from({ length: 13 }, (_, i) => `${prefix}${String(i + 1).padStart(2, "0")}`).join(", ");
 
 function starterGroups(): Group[] {
-  const codes = (prefix: string) => Array.from({ length: 13 }, (_, i) => `${prefix}${String(i + 1).padStart(2, "0")}`).join(", ");
   return [
-    { id: newId(), name: "1. Klasse", short: "1. Kl.", color: "#E98F82", children: codes("A"), sortOrder: 0 },
-    { id: newId(), name: "2. Klasse", short: "2. Kl.", color: "#6FAFD4", children: codes("B"), sortOrder: 1 },
-    { id: newId(), name: "3. Klasse", short: "3. Kl.", color: "#78B99A", children: codes("C"), sortOrder: 2 },
+    { id: newId(), name: "3. Klasse", short: "3. Kl.", color: "#E98F82", children: codes("C"), sortOrder: 0 },
+    { id: newId(), name: "4. Klasse", short: "4. Kl.", color: "#6FAFD4", children: codes("D"), sortOrder: 1 },
+    { id: newId(), name: "5. Klasse", short: "5. Kl.", color: "#78B99A", children: codes("E"), sortOrder: 2 },
   ];
 }
 
-function buildRows(rows: Row[], templateId: string, groups: Group[], teacherIds: string[]): Session[] {
-  const pick = (i: number) => (teacherIds.length ? teacherIds[i % teacherIds.length] : "");
-  return rows.map(([day, slot, title, focus, room, plan]) => {
-    const assignments: Assignment[] = plan === "all"
-      ? teacherIds.slice(0, 3).map((teacherId, i) => ({ groupId: groups[i]?.id ?? "", teacherId })).filter((a) => a.groupId)
-      : groups.map((g, i) => ({ groupId: g.id, teacherId: pick(plan[i] ?? i) }));
-    return {
-      id: newId(), weekStart: null, templateId, day, slot, title, focus, room, notes: "", children: "",
-      wholeClass: plan === "all", status: "planned", assignments,
+const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
+  || a.trim().split(/\s+/)[0].toLowerCase() === b.trim().toLowerCase();
+
+/**
+ * Startinhalt für ein neues Team: Lehrpersonen, Klassen 3–5, Vorlage „Stundenplan Kastanie SJ 26/27“
+ * und eine Projektwoche. Bereits vorhandene Lehrpersonen (z. B. die Gründerin) werden per Vorname zugeordnet.
+ */
+export function buildStarterContent(existing: Teacher[] = []): { teachers: Teacher[]; groups: Group[]; templates: Template[]; sessions: Session[] } {
+  const newTeachers: Teacher[] = [];
+  const idOf = {} as Record<T, string>;
+  KASTANIE_TEACHERS.forEach((name, i) => {
+    const match = existing.find((t) => sameName(t.name, name));
+    if (match) { idOf[name] = match.id; return; }
+    const teacher: Teacher = {
+      id: newId(), name, initials: initialsFrom(name),
+      color: TEACHER_PALETTE[(existing.length + newTeachers.length) % TEACHER_PALETTE.length],
+      active: true, sortOrder: existing.length + i,
     };
+    newTeachers.push(teacher);
+    idOf[name] = teacher.id;
   });
-}
 
-/** Startinhalt für ein neues Team: drei Gruppen und zwei Wochenvorlagen. */
-export function buildStarterContent(teacherIds: string[]): { groups: Group[]; templates: Template[]; sessions: Session[] } {
   const groups = starterGroups();
+  const days = Object.fromEntries(Object.entries(KASTANIE_DAYS).map(([day, v]) => [day, {
+    attendance: v.present.map((n) => idOf[n]), note: v.note ?? "", meetings: [],
+  }])) as unknown as WeekDays;
   const templates: Template[] = [
-    { id: newId(), name: "Regelwoche ADL", sortOrder: 0 },
-    { id: newId(), name: "Projektwoche", sortOrder: 1 },
+    { id: newId(), name: "Stundenplan Kastanie SJ 26/27", sortOrder: 0, days },
+    { id: newId(), name: "Projektwoche", sortOrder: 1, days },
   ];
-  const sessions = [
-    ...buildRows(RULE_WEEK, templates[0].id, groups, teacherIds),
-    ...buildRows(PROJECT_WEEK, templates[1].id, groups, teacherIds),
-  ];
-  return { groups, templates, sessions };
+
+  const toAssignment = (cell: Cell, group: Group): Assignment => cell === "frei"
+    ? { groupId: group.id, teacherId: "", off: true }
+    : { groupId: group.id, teacherId: idOf[cell.teachers[0]], ...(cell.teachers[1] ? { coTeacherId: idOf[cell.teachers[1]] } : {}), subject: cell.subject, ...(cell.room ? { room: cell.room } : {}) };
+
+  const timetable: Session[] = KASTANIE.map((entry) => {
+    const base = { id: newId(), weekStart: null, templateId: templates[0].id, day: entry.day, slot: entry.slot, children: "", status: "planned" as const };
+    if ("all" in entry) {
+      const cell = entry.all;
+      const assignments = groups.map((g) => {
+        const a = toAssignment(cell, g);
+        delete a.subject; delete a.room;
+        return a;
+      });
+      return { ...base, title: cell.subject, focus: cell.focus ?? "", room: cell.room ?? "", notes: cell.notes ?? "", wholeClass: true, assignments };
+    }
+    const assignments = groups.map((g, i) => toAssignment(entry.perGroup[i], g));
+    const active = entry.perGroup.filter((x): x is Exclude<Cell, "frei"> => x !== "frei");
+    const sharedRoom = active.every((x) => x.room === active[0]?.room) ? active[0]?.room ?? "" : "";
+    return { ...base, title: deriveTitle(assignments, "Lektion"), focus: "", room: sharedRoom, notes: "", wholeClass: false, assignments };
+  });
+
+  const project: Session[] = PROJECT_WEEK.map(([day, slot, title, focus, room, plan]) => ({
+    id: newId(), weekStart: null, templateId: templates[1].id, day, slot, title, focus, room, notes: "", children: "", status: "planned",
+    wholeClass: plan === "all",
+    assignments: groups.map((g, i) => ({ groupId: g.id, teacherId: idOf[plan === "all" ? (["Dani", "Andrea", "Coni"] as T[])[i] : plan[i]] })),
+  }));
+
+  return { teachers: newTeachers, groups, templates, sessions: [...timetable, ...project] };
 }
 
 export const DEMO_USERS = {
-  koordination: { userId: "demo-koordination", displayName: "Lara Meier", role: "koordination" as const, teacherIndex: 0 },
-  lehrperson: { userId: "demo-lehrperson", displayName: "Kim Berger", role: "lehrperson" as const, teacherIndex: 1 },
+  koordination: { userId: "demo-koordination", displayName: "Andrea", role: "koordination" as const },
+  lehrperson: { userId: "demo-lehrperson", displayName: "Nici", role: "lehrperson" as const },
 };
 
 export function buildDemoSnapshot(weekStart: string): PlannerSnapshot {
-  const teachers: Teacher[] = [
-    { id: newId(), name: "Lara Meier", initials: "LM", color: "#795A9D", active: true, sortOrder: 0 },
-    { id: newId(), name: "Kim Berger", initials: "KB", color: "#C57953", active: true, sortOrder: 1 },
-    { id: newId(), name: "Sami Frei", initials: "SF", color: "#347A78", active: true, sortOrder: 2 },
-    { id: newId(), name: "Nora Graf", initials: "NG", color: "#4D699F", active: true, sortOrder: 3 },
-  ];
-  const content = buildStarterContent(teachers.map((t) => t.id));
-  const rule = content.sessions.filter((s) => s.templateId === content.templates[0].id);
-  const week = cloneTemplateToWeek(rule, weekStart).map((s, i) =>
-    i === 2 ? { ...s, status: "open" as const, notes: "Lesespur 2 noch nicht ganz abgeschlossen. Gruppe 1 braucht zusätzliche Begleitung." }
-      : i === 0 ? { ...s, status: "done" as const } : s);
-  const [lara, kim, sami, nora] = teachers.map((t) => t.id);
-  const days = emptyDays(teachers);
-  days.mo = { attendance: [lara, kim, sami], note: "10:00 Uhr: Besuch der Schulsozialarbeit.", meetings: [{ time: "16:15", title: "Stufensitzung" }] };
-  days.di = { attendance: [lara, kim, sami, nora], note: "Turnhalle ab 10:00 Uhr reserviert.", meetings: [] };
-  days.mi = { attendance: [lara, kim, nora], note: "Sami: Weiterbildung ganzer Tag.", meetings: [{ time: "12:15", title: "Kurzabsprache IF" }] };
-  days.do = { attendance: [lara, kim, sami], note: "", meetings: [{ time: "16:10", title: "Elterngespräch" }, { time: "17:00", title: "Teamplanung" }] };
-  days.fr = { attendance: [lara, kim, sami], note: "Bibliotheksbücher mitgeben.", meetings: [] };
+  const content = buildStarterContent([]);
+  const teachers = content.teachers;
+  const id = (name: T) => teachers.find((t) => t.name === name)?.id ?? "";
+  const main = content.templates[0];
+  const week = cloneTemplateToWeek(content.sessions.filter((s) => s.templateId === main.id), weekStart);
+  // etwas Leben in die Demo-Woche bringen
+  const monday = week.filter((s) => s.day === "mo").sort((a, b) => a.slot - b.slot);
+  if (monday[1]) monday[1].status = "done";
+  if (monday[2]) { monday[2].status = "open"; monday[2].notes = "Einmaleins-Training noch nicht abgeschlossen. 4. Klasse braucht zusätzliche Begleitung."; }
+  const days = daysFromTemplate(main.days, teachers);
+  days.mo = { ...days.mo, note: "10:00 Uhr: Besuch der Schulsozialarbeit.", meetings: [{ time: "16:15", title: "Stufensitzung" }] };
+  days.di = { ...days.di, note: "Turnhalle ab 13:40 Uhr reserviert.", meetings: [] };
+  days.mi = { ...days.mi, meetings: [{ time: "12:15", title: "Kurzabsprache IF" }] };
+  days.do = { ...days.do, meetings: [{ time: "16:10", title: "Elterngespräch" }, { time: "17:00", title: "Teamplanung" }] };
+  days.fr = { ...days.fr, note: "Bibliotheksbücher mitgeben." };
   return {
-    team: { id: "demo", name: "ADL Opfikon", joinCode: "DEMO2026" },
+    team: { id: "demo", name: "Kastanie · Schule Opfikon", joinCode: "DEMO2026" },
     members: [
-      { userId: DEMO_USERS.koordination.userId, displayName: "Lara Meier", role: "koordination", teacherId: lara },
-      { userId: DEMO_USERS.lehrperson.userId, displayName: "Kim Berger", role: "lehrperson", teacherId: kim },
+      { userId: DEMO_USERS.koordination.userId, displayName: "Andrea", role: "koordination", teacherId: id("Andrea") },
+      { userId: DEMO_USERS.lehrperson.userId, displayName: "Nici", role: "lehrperson", teacherId: id("Nici") },
     ],
     teachers,
     groups: content.groups,

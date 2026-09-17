@@ -16,7 +16,10 @@ const toGroup = (r: Row): Group => ({
   id: String(r.id), name: String(r.name), short: String(r.short ?? ""), color: String(r.color),
   children: String(r.children ?? ""), sortOrder: Number(r.sort_order ?? 0),
 });
-const toTemplate = (r: Row): Template => ({ id: String(r.id), name: String(r.name), sortOrder: Number(r.sort_order ?? 0) });
+const toTemplate = (r: Row): Template => ({
+  id: String(r.id), name: String(r.name), sortOrder: Number(r.sort_order ?? 0),
+  days: r.days && typeof r.days === "object" && Object.keys(r.days as object).length ? (r.days as Template["days"]) : null,
+});
 const toMember = (r: Row): Member => ({
   userId: String(r.user_id), displayName: String(r.display_name ?? ""), role: r.role as Role,
   teacherId: (r.teacher_id as string | null) ?? null,
@@ -62,6 +65,32 @@ export async function listMemberships(client: SupabaseClient, userId: string): P
 export async function createTeam(client: SupabaseClient, name: string, displayName: string): Promise<string> {
   const { data } = check(await client.rpc("create_team", { p_name: name, p_display_name: displayName }));
   return String(data);
+}
+
+/**
+ * Legt den Startinhalt (Stundenplan Kastanie) für ein frisch gegründetes Team an.
+ * Die Gründerin/der Gründer wird per Vorname einer Stundenplan-Lehrperson zugeordnet.
+ */
+export async function seedStarterContent(
+  client: SupabaseClient,
+  teamId: string,
+  build: (existing: Teacher[]) => { teachers: Teacher[]; groups: Group[]; templates: Template[]; sessions: Session[] },
+): Promise<void> {
+  const { data: existingRows } = check(await client.from("teachers").select("*").eq("team_id", teamId));
+  const existing = (existingRows ?? []).map(toTeacher);
+  const content = build(existing);
+  if (content.teachers.length) {
+    check(await client.from("teachers").insert(content.teachers.map((t) => ({
+      id: t.id, team_id: teamId, name: t.name, initials: t.initials, color: t.color, active: t.active, sort_order: t.sortOrder,
+    }))));
+  }
+  check(await client.from("groups").insert(content.groups.map((g) => ({
+    id: g.id, team_id: teamId, name: g.name, short: g.short, color: g.color, children: g.children, sort_order: g.sortOrder,
+  }))));
+  check(await client.from("templates").insert(content.templates.map((t) => ({
+    id: t.id, team_id: teamId, name: t.name, sort_order: t.sortOrder, days: t.days ?? {},
+  }))));
+  check(await client.from("sessions").insert(content.sessions.map((s) => sessionToRow(s, teamId))));
 }
 
 export async function joinTeam(client: SupabaseClient, code: string, displayName: string): Promise<string> {
@@ -125,7 +154,7 @@ export function createSupabaseBackend(client: SupabaseClient, teamId: string): P
           }))));
           return;
         case "upsertTemplates":
-          check(await client.from("templates").upsert(op.rows.map((t) => ({ id: t.id, team_id: teamId, name: t.name.slice(0, 80) || "Vorlage", sort_order: t.sortOrder }))));
+          check(await client.from("templates").upsert(op.rows.map((t) => ({ id: t.id, team_id: teamId, name: t.name.slice(0, 80) || "Vorlage", sort_order: t.sortOrder, days: t.days ?? {} }))));
           return;
         case "updateTeam":
           check(await client.from("teams").update({ name: op.name.slice(0, 120) || "Team" }).eq("id", teamId));

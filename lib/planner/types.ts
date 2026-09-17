@@ -4,7 +4,18 @@ export type Role = "koordination" | "lehrperson";
 
 export type Group = { id: string; name: string; short: string; color: string; children: string; sortOrder: number };
 export type Teacher = { id: string; name: string; initials: string; color: string; active: boolean; sortOrder: number };
-export type Assignment = { groupId: string; teacherId: string };
+export type Assignment = {
+  groupId: string;
+  teacherId: string;
+  /** zweite Lehrperson (Teamteaching, z. B. „Andrea/Dani“) */
+  coTeacherId?: string;
+  /** abweichendes Fach dieser Gruppe (wenn Klassen parallel Verschiedenes haben) */
+  subject?: string;
+  /** abweichender Raum dieser Gruppe */
+  room?: string;
+  /** Gruppe hat in dieser Lektion frei */
+  off?: boolean;
+};
 
 export type Session = {
   id: string;
@@ -28,7 +39,13 @@ export type Meeting = { time: string; title: string };
 export type DayMeta = { attendance: string[]; note: string; meetings: Meeting[] };
 export type WeekDays = Record<DayKey, DayMeta>;
 
-export type Template = { id: string; name: string; sortOrder: number };
+export type Template = {
+  id: string;
+  name: string;
+  sortOrder: number;
+  /** Standard für neue Wochen: Anwesenheit und Tagesnotizen */
+  days: Partial<WeekDays> | null;
+};
 
 export type Member = {
   userId: string;

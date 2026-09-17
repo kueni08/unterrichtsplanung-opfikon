@@ -69,6 +69,9 @@ update public.sessions set title = 'gehackt';
 reset role;
 select pg_temp.expect((select count(*) from public.sessions where title = 'gehackt') = 0, 'Fremde Updates wirkungslos');
 
+-- vorbereitetes Profil ohne Konto (wie aus dem Stundenplan)
+insert into public.teachers (team_id, name, initials) values (:'team_id', 'Kim', 'KI');
+
 -- 3) Lehrperson tritt bei
 select pg_temp.act_as('00000000-0000-0000-0000-00000000000b');
 select public.join_team(lower(:'join_code'), 'Kim Berger') = :'team_id'::uuid as joined \gset
@@ -76,7 +79,8 @@ select pg_temp.expect(:'joined'::boolean, 'Beitritt mit Code (Kleinschreibung) k
 select public.join_team(:'join_code', 'Kim Berger');
 select pg_temp.expect((select count(*) from public.team_members where team_id = :'team_id') = 2, 'Doppelter Beitritt erzeugt keinen zweiten Eintrag');
 select pg_temp.expect((select role from public.team_members where user_id = '00000000-0000-0000-0000-00000000000b') = 'lehrperson', 'Beigetreten als Lehrperson');
-select pg_temp.expect((select count(*) from public.teachers where team_id = :'team_id') = 2, 'Lehrperson-Profil angelegt');
+select pg_temp.expect((select count(*) from public.teachers where team_id = :'team_id') = 2, 'Vorhandenes Profil „Kim“ wird verknüpft statt dupliziert');
+select pg_temp.expect((select t.name from public.team_members m join public.teachers t on t.id = m.teacher_id where m.user_id = '00000000-0000-0000-0000-00000000000b') = 'Kim', 'Verknüpfung per Vorname');
 
 -- darf Wochen planen
 update public.sessions set title = 'Deutsch · Lesespuren' where id = '20000000-0000-0000-0000-000000000001';

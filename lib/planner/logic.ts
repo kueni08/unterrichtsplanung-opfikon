@@ -115,7 +115,20 @@ export function continuationTitle(title: string): string {
 }
 
 export function isVisibleFor(session: Session, teacherId: string | "all"): boolean {
-  return teacherId === "all" || session.wholeClass || session.assignments.some((a) => a.teacherId === teacherId);
+  return teacherId === "all" || session.wholeClass
+    || session.assignments.some((a) => !a.off && (a.teacherId === teacherId || a.coTeacherId === teacherId));
+}
+
+/** Alle Lehrpersonen eines Blocks (ohne Duplikate, ohne freie Gruppen). */
+export function sessionTeacherIds(session: Session): string[] {
+  const ids = session.assignments.filter((a) => !a.off).flatMap((a) => [a.teacherId, a.coTeacherId ?? ""]);
+  return [...new Set(ids.filter(Boolean))];
+}
+
+/** Titel aus den Fächern der Gruppen ableiten (z. B. „Englisch · Französisch“). */
+export function deriveTitle(assignments: Assignment[], fallback: string): string {
+  const subjects = [...new Set(assignments.filter((a) => !a.off && a.subject).map((a) => a.subject as string))];
+  return subjects.length ? subjects.join(" · ") : fallback;
 }
 
 export function planningWarnings(sessions: Session[], groups: Group[], teachers: Teacher[]): string[] {
@@ -124,11 +137,19 @@ export function planningWarnings(sessions: Session[], groups: Group[], teachers:
   if (active.size < 3) warnings.push("Mindestens drei aktive Lehrpersonen sind vorgesehen.");
   for (const s of sessions) {
     if (s.wholeClass) continue;
-    const assigned = groups.map((g) => s.assignments.find((a) => a.groupId === g.id)?.teacherId ?? "");
-    if (assigned.some((id) => !id)) warnings.push(`${s.title}: Zuständigkeit noch offen.`);
-    else if (assigned.some((id) => !active.has(id))) warnings.push(`${s.title}: Eine zugeteilte Lehrperson ist nicht aktiv.`);
-    const filled = assigned.filter(Boolean);
-    if (new Set(filled).size < filled.length) warnings.push(`${s.title}: Eine Lehrperson ist mehreren Gruppen zugeteilt.`);
+    const relevant = groups
+      .map((g) => s.assignments.find((a) => a.groupId === g.id) ?? { groupId: g.id, teacherId: "" })
+      .filter((a) => !a.off);
+    if (relevant.some((a) => !a.teacherId)) warnings.push(`${s.title}: Zuständigkeit noch offen.`);
+    else if (relevant.some((a) => !active.has(a.teacherId) || (a.coTeacherId && !active.has(a.coTeacherId)))) warnings.push(`${s.title}: Eine zugeteilte Lehrperson ist nicht aktiv.`);
+    // Dieselbe Lehrperson darf mehrere Gruppen nur führen, wenn diese dasselbe Fach gemeinsam haben
+    const byTeacher = new Map<string, Set<string>>();
+    for (const a of relevant) {
+      if (!a.teacherId) continue;
+      const key = `${a.subject ?? s.title}|${a.room ?? s.room}`;
+      byTeacher.set(a.teacherId, (byTeacher.get(a.teacherId) ?? new Set()).add(key));
+    }
+    if ([...byTeacher.values()].some((set) => set.size > 1)) warnings.push(`${s.title}: Eine Lehrperson ist gleichzeitig mehreren Gruppen mit unterschiedlichem Unterricht zugeteilt.`);
   }
   return [...new Set(warnings)];
 }
@@ -151,6 +172,27 @@ export function cloneTemplateToWeek(templateSessions: Session[], weekStart: stri
   }));
 }
 
-export function setAssignment(assignments: Assignment[], groupId: string, teacherId: string): Assignment[] {
-  return [...assignments.filter((a) => a.groupId !== groupId), { groupId, teacherId }];
+export function setAssignment(assignments: Assignment[], groupId: string, patch: Partial<Assignment>): Assignment[] {
+  const existing = assignments.find((a) => a.groupId === groupId) ?? { groupId, teacherId: "" };
+  const next: Assignment = { ...existing, ...patch, groupId };
+  for (const key of ["coTeacherId", "subject", "room"] as const) if (!next[key]) delete next[key];
+  if (!next.off) delete next.off;
+  return [...assignments.filter((a) => a.groupId !== groupId), next];
+}
+
+/** Tagesvorgaben einer Vorlage auf die aktuellen Lehrpersonen anwenden. */
+export function daysFromTemplate(templateDays: Partial<WeekDays> | null | undefined, teachers: Teacher[]): WeekDays {
+  const base = emptyDays(teachers);
+  if (!templateDays) return base;
+  const known = new Set(teachers.map((t) => t.id));
+  for (const d of DAYS) {
+    const src = templateDays[d.id];
+    if (!src) continue;
+    base[d.id] = {
+      attendance: (src.attendance ?? base[d.id].attendance).filter((id) => known.has(id)),
+      note: src.note ?? "",
+      meetings: (src.meetings ?? []).slice(0, 2).map((m) => ({ ...m })),
+    };
+  }
+  return base;
 }

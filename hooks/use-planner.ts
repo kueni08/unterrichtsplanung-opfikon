@@ -6,10 +6,10 @@ import { toast } from "sonner";
 import type { PlannerBackend } from "@/lib/planner/backend";
 import { DAYS, SLOTS, TEACHER_PALETTE, GROUP_PALETTE } from "@/lib/planner/constants";
 import {
-  applyChanged, carryForwardTarget, cloneTemplateToWeek, continuationTitle, defaultAssignments, emptyDays,
+  applyChanged, carryForwardTarget, cloneTemplateToWeek, continuationTitle, daysFromTemplate, defaultAssignments, emptyDays,
   findFreeSlot, initialsFrom, makeSession, newId, reorderSessions, sessionsIn,
 } from "@/lib/planner/logic";
-import type { DayKey, DayMeta, Group, Member, PersistOp, PlannerSnapshot, Role, Session, Teacher, Viewer } from "@/lib/planner/types";
+import type { DayKey, DayMeta, Group, Member, PersistOp, PlannerSnapshot, Role, Session, Teacher, Template, Viewer } from "@/lib/planner/types";
 
 export type SaveState = "saved" | "saving" | "error";
 export type Container = { weekStart: string } | { templateId: string };
@@ -220,7 +220,8 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
   const createWeekFromTemplate = useCallback((weekStart: string, templateId: string) => {
     const snap = get();
     if (snap.weeks[weekStart]) return;
-    const days = emptyDays(snap.teachers);
+    const template = snap.templates.find((t) => t.id === templateId);
+    const days = daysFromTemplate(template?.days, snap.teachers);
     const clones = cloneTemplateToWeek(sessionsIn(snap.sessions, { templateId }), weekStart);
     commit(
       { ...snap, weeks: { ...snap.weeks, [weekStart]: days }, sessions: [...snap.sessions, ...clones] },
@@ -294,6 +295,16 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commit]);
 
+  const updateTemplate = useCallback((id: string, patch: Partial<Template>) => {
+    const snap = get();
+    setSnapshot({ ...snap, templates: snap.templates.map((t) => (t.id === id ? { ...t, ...patch } : t)) });
+    debounce(`template:${id}`, () => {
+      const t = snapRef.current?.templates.find((x) => x.id === id);
+      return t ? { type: "upsertTemplates", rows: [t] } : null;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debounce, setSnapshot]);
+
   const renameTeam = useCallback((name: string) => {
     const snap = get();
     setSnapshot({ ...snap, team: { ...snap.team, name } });
@@ -339,7 +350,7 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     snapshot, loadError, saveState, onlineUserIds, me, role, isCoordinator: role === "koordination",
     reload, flush,
     updateSession, addSession, removeSession, moveSession, carryForward, createWeekFromTemplate, updateDay,
-    updateGroup, addGroup, removeGroup, updateTeacher, addTeacher, renameTeam, updateMember, removeMember,
+    updateGroup, addGroup, removeGroup, updateTeacher, addTeacher, updateTemplate, renameTeam, updateMember, removeMember,
     regenerateJoinCode, resetDemo: backend.reset ? resetDemo : undefined,
   };
 }
