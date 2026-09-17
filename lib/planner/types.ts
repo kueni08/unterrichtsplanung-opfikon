@@ -3,6 +3,16 @@ export type SessionStatus = "planned" | "open" | "done" | "carried";
 export type Role = "koordination" | "lehrperson";
 
 export type Group = { id: string; name: string; short: string; color: string; children: string; sortOrder: number };
+export type Child = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  /** Kürzel im Wochenplan (aus den Anfangsbuchstaben, anpassbar) */
+  short: string;
+  groupId: string | null;
+  active: boolean;
+  sortOrder: number;
+};
 export type Teacher = { id: string; name: string; initials: string; color: string; active: boolean; sortOrder: number };
 export type Assignment = {
   groupId: string;
@@ -67,6 +77,8 @@ export type PlannerSnapshot = {
   members: Member[];
   teachers: Teacher[];
   groups: Group[];
+  /** Kinder-Stammliste (optional; leer bei Teams, die nur Kürzel pflegen) */
+  children: Child[];
   templates: Template[];
   /** Lektionen aller Wochen und Vorlagen */
   sessions: Session[];
@@ -90,6 +102,8 @@ export type PersistOp =
   | { type: "patchWeekDay"; weekStart: string; day: DayKey; patch: Partial<DayMeta> }
   | { type: "upsertGroups"; rows: Group[] }
   | { type: "deleteGroup"; id: string }
+  | { type: "upsertChildren"; rows: Child[] }
+  | { type: "deleteChildren"; ids: string[] }
   | { type: "upsertTeachers"; rows: Teacher[] }
   | { type: "upsertTemplates"; rows: Template[] }
   | { type: "updateTeam"; name: string }

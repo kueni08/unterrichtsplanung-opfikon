@@ -191,6 +191,13 @@ export const DEMO_USERS = {
   lehrperson: { userId: "demo-lehrperson", displayName: DEMO_NAMES.Nici, role: "lehrperson" as const },
 };
 
+/** Demo-Kinder: Namen aus der Zauberwelt, Kürzel passend zu den Gruppenlisten (je Gruppe). */
+const DEMO_CHILDREN: Record<string, string>[] = [
+  { HP: "Harry Potter", RW: "Ron Weasley", NL: "Neville Longbottom", GW: "Ginny Weasley", SF: "Seamus Finnigan", DT: "Dean Thomas", LB: "Lavender Brown", PP: "Parvati Patil", CC: "Colin Creevey", FW: "Fred Weasley" },
+  { CD: "Cedric Diggory", HA: "Hannah Abbott", EM: "Ernie Macmillan", SB: "Susan Bones", JF: "Justin Finch-Fletchley", ZS: "Zacharias Smith", NT: "Nymphadora Tonks", WW: "Wayne Wexler", LS: "Leanne Summers" },
+  { LL: "Luna Lovegood", CH: "Cho Chang", PA: "Padma Patil", TB: "Terry Boot", AG: "Anthony Goldstein", MC: "Michael Corner", ME: "Marietta Edgecombe", RC: "Roger Cornfoot", LT: "Lisa Turpin" },
+];
+
 export function buildDemoSnapshot(weekStart: string): PlannerSnapshot {
   const content = buildStarterContent([], { demo: true });
   const teachers = content.teachers;
@@ -222,6 +229,10 @@ export function buildDemoSnapshot(weekStart: string): PlannerSnapshot {
     ],
     teachers,
     groups: content.groups,
+    children: DEMO_CHILDREN.flatMap((names, g) => Object.entries(names).map(([short, name], i) => {
+      const parts = name.split(" ");
+      return { id: newId(), firstName: parts[0], lastName: parts.slice(1).join(" "), short, groupId: content.groups[g].id, active: true, sortOrder: g * 20 + i };
+    })),
     templates: content.templates,
     sessions: [...content.sessions, ...week],
     weeks: { [weekStart]: days },

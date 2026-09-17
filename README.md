@@ -15,7 +15,7 @@ Digitale Wochenplanung für altersdurchmischte Klassen und Teamteaching an der S
 - **Rollen** – *Koordination* verwaltet Team, Stammdaten und Vorlagen; *Lehrperson* plant im Team mit (Wochen, Lektionen, Tagesfokus) und sieht Vorlagen nur lesend. Die persönliche Ansicht zeigt die eigenen Lektionen vollständig, fremde nur abgeschwächt mit Titel.
 - **Als App installierbar (PWA)** – Wochenatelier lässt sich auf Handy, Tablet und Computer zum Home-Bildschirm hinzufügen und startet dann wie eine App. Die App-Hülle wird offline vorgehalten; die Plandaten brauchen weiterhin eine Internetverbindung.
 - **Demo-Modus** – die Anwendung lässt sich ohne Konto und ohne Server mit Beispieldaten ausprobieren (Daten bleiben nur im Browser).
-- **Datenschutz** – Kinder werden ausschliesslich mit Kürzeln erfasst (z. B. A01), nie mit Namen oder weiteren Angaben.
+- **Kinder-Stammliste** – Kinder mit Namen erfassen oder aus Excel/CSV importieren; Gruppen wählen ihre Kinder per Checkbox daraus. Im Wochenplan erscheinen Kinder nur mit Kürzel.
 
 Eine ausführliche Bedienungsanleitung für Lehrpersonen und Koordination steht in [`docs/ANLEITUNG.md`](docs/ANLEITUNG.md), die technische Einrichtung (Supabase, Deployment, RLS) in [`docs/EINRICHTUNG.md`](docs/EINRICHTUNG.md).
 

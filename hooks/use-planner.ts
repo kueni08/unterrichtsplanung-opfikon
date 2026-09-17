@@ -4,12 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import type { PlannerBackend } from "@/lib/planner/backend";
+import { childShort, makeChild, mergeImport, syncGroupChildren, type ImportedRow } from "@/lib/planner/children";
 import { DAYS, SLOTS, TEACHER_PALETTE, GROUP_PALETTE, isMeetingSlot } from "@/lib/planner/constants";
 import {
   applyChanged, carryForwardTarget, continuationTitle, defaultAssignments, emptyDays,
   findFreeSlot, makeSession, newId, pickFields, reorderSessions, sameContainer, sessionsIn, uniqueInitials, weekFromTemplate,
 } from "@/lib/planner/logic";
-import type { DayKey, DayMeta, Group, Member, PersistOp, PlannerSnapshot, Role, Session, Teacher, Template, Viewer } from "@/lib/planner/types";
+import type { Child, DayKey, DayMeta, Group, Member, PersistOp, PlannerSnapshot, Role, Session, Teacher, Template, Viewer } from "@/lib/planner/types";
 
 export type SaveState = "saved" | "saving" | "error";
 export type Container = { weekStart: string } | { templateId: string };
@@ -348,8 +349,75 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
 
   const removeGroup = useCallback((id: string) => {
     const snap = get();
-    commit({ ...snap, groups: snap.groups.filter((g) => g.id !== id) }, [{ type: "deleteGroup", id }]);
+    // zugeordnete Kinder zurück in die Grundliste
+    const orphaned = snap.children.filter((c) => c.groupId === id).map((c) => ({ ...c, groupId: null }));
+    const ops: PersistOp[] = [{ type: "deleteGroup", id }];
+    if (orphaned.length) ops.push({ type: "upsertChildren", rows: orphaned });
+    const children = snap.children.map((c) => orphaned.find((o) => o.id === c.id) ?? c);
+    commit({ ...snap, groups: snap.groups.filter((g) => g.id !== id), children }, ops);
   }, [commit]);
+
+  /** Kinderliste ändern und den Kürzel-Spiegel der Gruppen nachführen. */
+  const commitChildren = useCallback((snap: PlannerSnapshot, children: Child[], ops: PersistOp[]) => {
+    const changedGroups = syncGroupChildren(snap.groups, children);
+    const groups = snap.groups.map((g) => changedGroups.find((c) => c.id === g.id) ?? g);
+    if (changedGroups.length) ops.push({ type: "upsertGroups", rows: changedGroups });
+    commit({ ...snap, children, groups }, ops);
+  }, [commit]);
+
+  const addChild = useCallback((firstName: string, lastName: string, groupId: string | null = null): string => {
+    const snap = get();
+    const child = makeChild({ firstName: firstName.trim(), lastName: lastName.trim(), groupId }, snap.children);
+    commitChildren(snap, [...snap.children, child], [{ type: "upsertChildren", rows: [child] }]);
+    return child.id;
+  }, [commitChildren]);
+
+  const updateChild = useCallback((id: string, patch: Partial<Child>) => {
+    const snap = get();
+    const children = snap.children.map((c) => {
+      if (c.id !== id) return c;
+      const next = { ...c, ...patch };
+      const others = snap.children.filter((x) => x.id !== id);
+      // Kürzel folgt dem Namen, solange es noch automatisch war
+      if ((patch.firstName !== undefined || patch.lastName !== undefined) && patch.short === undefined && c.short === childShort(c, others)) next.short = childShort(next, others);
+      if (patch.short !== undefined) next.short = patch.short.trim().slice(0, 6);
+      return next;
+    });
+    const row = children.find((c) => c.id === id);
+    if (!row) return;
+    commitChildren(snap, children, [{ type: "upsertChildren", rows: [row] }]);
+  }, [commitChildren]);
+
+  const removeChildren = useCallback((ids: string[]) => {
+    const snap = get();
+    const set = new Set(ids);
+    commitChildren(snap, snap.children.filter((c) => !set.has(c.id)), [{ type: "deleteChildren", ids }]);
+  }, [commitChildren]);
+
+  /** Gruppenzuordnung mehrerer Kinder auf einmal setzen (Checkbox-Auswahl). */
+  const assignChildren = useCallback((groupId: string, childIds: string[]) => {
+    const snap = get();
+    const wanted = new Set(childIds);
+    const rows: Child[] = [];
+    const children = snap.children.map((c) => {
+      const shouldBeIn = wanted.has(c.id);
+      const isIn = c.groupId === groupId;
+      if (shouldBeIn === isIn) return c;
+      const next = { ...c, groupId: shouldBeIn ? groupId : null };
+      rows.push(next);
+      return next;
+    });
+    if (!rows.length) return;
+    commitChildren(snap, children, [{ type: "upsertChildren", rows }]);
+  }, [commitChildren]);
+
+  const importChildren = useCallback((rows: ImportedRow[]): number => {
+    const snap = get();
+    const added = mergeImport(snap.children, rows, snap.groups);
+    if (!added.length) return 0;
+    commitChildren(snap, [...snap.children, ...added], [{ type: "upsertChildren", rows: added }]);
+    return added.length;
+  }, [commitChildren]);
 
   const updateTeacher = useCallback((id: string, patch: Partial<Teacher>) => {
     const snap = get();
@@ -428,6 +496,7 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     snapshot, loadError, saveState, onlineUserIds, me, role, isCoordinator: role === "koordination",
     reload, flush,
     updateSession, addSession, removeSession, moveSession, swapSessions, replaceSession, appendSession, carryForward, createWeekFromTemplate, updateDay,
+    addChild, updateChild, removeChildren, assignChildren, importChildren,
     updateGroup, addGroup, removeGroup, updateTeacher, addTeacher, updateTemplate, renameTeam, updateMember, removeMember,
     regenerateJoinCode, resetDemo: backend.reset ? resetDemo : undefined,
   };

@@ -74,6 +74,10 @@ Zusätzliche Regeln, die in der Datenbank erzwungen werden:
 
 `lib/planner/constants.ts` definiert die Tagesstruktur als Liste `SLOTS` (Index = gespeicherter `slot` in `sessions`). Lektionen (`kind: "lesson"`) und Termine (`kind: "meeting"`, Mittag/Abend) bilden getrennte Spuren: Verschieben, Übertragen und „nächster freier Platz“ bleiben innerhalb einer Spur. Die Datenbank erlaubt `slot` 0–10 (`sessions_slot_check`); die Migration `20260917000400_tagesstruktur.sql` hat die bisherigen Nachmittagslektionen (5/6) auf 6/7 verschoben. Teilnehmende eines Termins werden als `assignments` mit leerer `groupId` gespeichert.
 
+## Kinder-Stammliste
+
+Tabelle `children` (Vor-/Nachname, Kürzel, `group_id`), RLS wie bei `groups` (Mitglieder lesen, Koordination schreibt). `groups.children` bleibt als Kürzel-Spiegel der Zuordnung bestehen (`syncGroupChildren` in `lib/planner/children.ts`), damit Zählung und Kinderzuordnung pro Lektion unverändert funktionieren. Der Excel-Import nutzt SheetJS (`xlsx`), das erst beim Import nachgeladen wird.
+
 ## Realtime
 
 Alle Tabellen sind Teil der Supabase-Realtime-Publikation (`supabase_realtime`) mit `replica identity full`. Die App abonniert Einfügungen und Änderungen gefiltert nach Team; Löschungen lassen sich in Supabase Realtime nicht filtern und liefern bei RLS nur den Primärschlüssel – sie werden daher ungefiltert abonniert und in der App anhand der bekannten IDs zugeordnet. Bei jedem Ereignis lädt die App den Teamstand kurz verzögert neu (nicht, solange eigene Änderungen noch gespeichert werden). Gespeichert werden nur die jeweils geänderten Felder, damit gleichzeitige Änderungen an verschiedenen Feldern nicht verloren gehen; bei gleichzeitiger Änderung desselben Feldes gilt die zuletzt gespeicherte. Die Presence-Funktion liefert die Online-Anzeige.

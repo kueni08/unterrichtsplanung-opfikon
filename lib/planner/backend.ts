@@ -27,7 +27,8 @@ export function createLocalBackend(factory: () => PlannerSnapshot): PlannerBacke
       const raw = window.localStorage.getItem(DEMO_KEY);
       if (!raw) return null;
       const parsed = JSON.parse(raw) as PlannerSnapshot;
-      return parsed?.team && Array.isArray(parsed.sessions) ? parsed : null;
+      if (!parsed?.team || !Array.isArray(parsed.sessions)) return null;
+      return { ...parsed, children: Array.isArray(parsed.children) ? parsed.children : [] };
     } catch {
       return null;
     }

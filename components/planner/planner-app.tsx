@@ -232,7 +232,7 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
 
           <div className="privacy-strip">
             <CircleAlert size={16} />
-            <span><strong>Datenschutz:</strong> Kinder nur mit Kürzel (z. B. A01) erfassen – keine Namen, Diagnosen oder privaten Details.</span>
+            <span><strong>Datenschutz:</strong> Im Wochenplan erscheinen Kinder nur mit Kürzel. Keine Diagnosen oder privaten Details in Notizfeldern.</span>
             <span className="privacy-count">{countChildren(snapshot.groups)} Kürzel erfasst</span>
           </div>
 
