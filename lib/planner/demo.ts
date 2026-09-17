@@ -75,37 +75,37 @@ const PROJECT_WEEK: Row[] = [
 
 const codes = (prefix: string) => Array.from({ length: 13 }, (_, i) => `${prefix}${String(i + 1).padStart(2, "0")}`).join(", ");
 
-type GroupSpec = { name: string; short: string; prefix: string };
+type GroupSpec = { name: string; short: string; color: string; children: string };
 const REAL_GROUPS: GroupSpec[] = [
-  { name: "3. Klasse", short: "3. Kl.", prefix: "C" },
-  { name: "4. Klasse", short: "4. Kl.", prefix: "D" },
-  { name: "5. Klasse", short: "5. Kl.", prefix: "E" },
+  { name: "3. Klasse", short: "3. Kl.", color: "#E98F82", children: codes("C") },
+  { name: "4. Klasse", short: "4. Kl.", color: "#6FAFD4", children: codes("D") },
+  { name: "5. Klasse", short: "5. Kl.", color: "#78B99A", children: codes("E") },
 ];
-const GROUP_COLORS = ["#E98F82", "#6FAFD4", "#78B99A"];
 
 function starterGroups(specs: GroupSpec[]): Group[] {
-  return specs.map((g, i) => ({ id: newId(), name: g.name, short: g.short, color: GROUP_COLORS[i], children: codes(g.prefix), sortOrder: i }));
+  return specs.map((g, i) => ({ id: newId(), name: g.name, short: g.short, color: g.color, children: g.children, sortOrder: i }));
 }
 
 /**
- * Erfundene, verspielte Namen für die öffentliche Demo und das Werbevideo
- * (die echten Vornamen aus dem Stundenplan bleiben der Vorlage für echte Teams vorbehalten).
+ * Augenzwinkernde Demo-Besetzung (Figuren aus Harry Potter) für die öffentliche Demo und das Werbevideo.
+ * Die echten Vornamen aus dem Stundenplan bleiben der Vorlage für echte Teams vorbehalten.
+ * Kinder erscheinen – wie in der echten App – nur als Kürzel.
  */
 const DEMO_NAMES: Record<T, string> = {
-  Dani: "Balduin Blitz",
-  Andrea: "Aurelia Eule",
-  Klara: "Kira Kessel",
-  Nici: "Nika Nachtigall",
-  Coni: "Coco Kobold",
+  Dani: "Albus Dumbledore",
+  Andrea: "Minerva McGonagall",
+  Klara: "Severus Snape",
+  Nici: "Hermine Granger",
+  Coni: "Rubeus Hagrid",
 };
 const DEMO_GROUPS: GroupSpec[] = [
-  { name: "Drachen · 3. Kl.", short: "Drachen", prefix: "DR" },
-  { name: "Einhörner · 4. Kl.", short: "Einhörner", prefix: "EH" },
-  { name: "Greife · 5. Kl.", short: "Greife", prefix: "GR" },
+  { name: "Gryffindor · 3. Kl.", short: "Gryffindor", color: "#E98F82", children: "HP, RW, NL, GW, SF, DT, LB, PP, CC, FW" },
+  { name: "Hufflepuff · 4. Kl.", short: "Hufflepuff", color: "#D8A653", children: "CD, HA, EM, SB, JF, ZS, NT, WW, LS" },
+  { name: "Ravenclaw · 5. Kl.", short: "Ravenclaw", color: "#6FAFD4", children: "LL, CH, PA, TB, AG, MC, ME, RC, LT" },
 ];
 const DEMO_TEXT: Record<string, string> = {
-  "Dani hat Lead (mit Gitarre).": "Balduin hat Lead (mit Zauberlaute).",
-  "Klara: PICTS": "Kira: Weiterbildung Kristallkugel-Kunde",
+  "Dani hat Lead (mit Gitarre).": "Dumbledore hat Lead (mit Phönix-Begleitung).",
+  "Klara: PICTS": "Snape: Weiterbildung Zaubertränke",
 };
 
 const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
@@ -140,7 +140,7 @@ export function buildStarterContent(
     attendance: v.present.map((n) => idOf[n]), note: text(v.note ?? ""), meetings: [],
   }])) as unknown as WeekDays;
   const templates: Template[] = [
-    { id: newId(), name: options.demo ? "Stundenplan Eulenturm" : "Stundenplan Kastanie SJ 26/27", sortOrder: 0, days },
+    { id: newId(), name: options.demo ? "Stundenplan Hogwarts" : "Stundenplan Kastanie SJ 26/27", sortOrder: 0, days },
     { id: newId(), name: "Projektwoche", sortOrder: 1, days },
   ];
 
@@ -188,15 +188,15 @@ export function buildDemoSnapshot(weekStart: string): PlannerSnapshot {
   // etwas Leben in die Demo-Woche bringen
   const monday = week.filter((s) => s.day === "mo").sort((a, b) => a.slot - b.slot);
   if (monday[1]) monday[1].status = "done";
-  if (monday[2]) { monday[2].status = "open"; monday[2].notes = "Einmaleins-Training noch nicht abgeschlossen. Die Einhörner brauchen zusätzliche Begleitung."; }
+  if (monday[2]) { monday[2].status = "open"; monday[2].notes = "Einmaleins-Training noch nicht abgeschlossen. Hufflepuff braucht zusätzliche Begleitung."; }
   const days = daysFromTemplate(main.days, teachers);
   days.mo = { ...days.mo, note: "10:00 Uhr: Die Schuleule bringt die Post.", meetings: [{ time: "16:15", title: "Stufensitzung" }] };
   days.di = { ...days.di, note: "Turnhalle ab 13:40 Uhr für das Besenflug-Training reserviert.", meetings: [] };
-  days.mi = { ...days.mi, meetings: [{ time: "12:15", title: "Kurzabsprache Zaubertrank-Labor" }] };
-  days.do = { ...days.do, meetings: [{ time: "16:10", title: "Elterngespräch" }, { time: "17:00", title: "Teamplanung im Eulenturm" }] };
+  days.mi = { ...days.mi, meetings: [{ time: "12:15", title: "Kurzabsprache Zaubertrank-Kerker" }] };
+  days.do = { ...days.do, meetings: [{ time: "16:10", title: "Elterngespräch" }, { time: "17:00", title: "Teamplanung im Lehrerzimmer" }] };
   days.fr = { ...days.fr, note: "Bibliotheksbücher zurückbringen – bitte keine fliegenden." };
   return {
-    team: { id: "demo", name: "Eulenturm · Demo-Schule", joinCode: "EULE2026" },
+    team: { id: "demo", name: "Hogwarts · Demo-Schule", joinCode: "EULE2026" },
     members: [
       { userId: DEMO_USERS.koordination.userId, displayName: DEMO_NAMES.Andrea, role: "koordination", teacherId: id("Andrea") },
       { userId: DEMO_USERS.lehrperson.userId, displayName: DEMO_NAMES.Nici, role: "lehrperson", teacherId: id("Nici") },

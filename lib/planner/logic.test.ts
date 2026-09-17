@@ -506,6 +506,7 @@ test("buildDemoSnapshot uses invented names only (no real teacher names from the
   for (const real of ["Dani", "Andrea", "Klara", "Nici", "Coni", "Kastanie", "PICTS"]) {
     assert.equal(text.includes(real), false, `${real} darf in der Demo nicht vorkommen`);
   }
-  assert.deepEqual(snap.teachers.map((t) => t.initials), ["BB", "AE", "KK", "NN", "CK"]);
-  assert.equal(DEMO_USERS.koordination.displayName, "Aurelia Eule");
+  assert.deepEqual(snap.teachers.map((t) => t.initials), ["AD", "MM", "SS", "HG", "RH"]);
+  assert.equal(DEMO_USERS.koordination.displayName, "Minerva McGonagall");
+  assert.equal(DEMO_USERS.lehrperson.displayName, "Hermine Granger");
 });
