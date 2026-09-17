@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { DAYS, SLOTS, slotsOfKind } from "./constants.ts";
-import type { DayKey, Group, Session, Teacher } from "./types.ts";
+import type { Assignment, DayKey, Group, Session, Teacher } from "./types.ts";
 import {
   carryForwardTarget,
   cloneTemplateToWeek,
@@ -17,6 +17,9 @@ import {
   normalizeDays,
   planningWarnings,
   reorderSessions,
+  resolveAssignments,
+  groupClusters,
+  mergeCandidates,
   sessionTeacherIds,
   setAssignment,
   setParticipants,
@@ -500,7 +503,7 @@ test("buildStarterContent: Stundenplan Kastanie with 5 teachers, classes 3–5, 
   assert.ok(monday4?.assignments.some((a) => a.teacherId === founder.id && a.room === "Kreis"));
   assert.equal(templates[0].days?.mi?.note, "Klara: PICTS");
   const allTeacherIds = new Set([founder.id, ...teachers.map((t) => t.id)]);
-  assert.ok(main.every((x) => x.assignments.every((a) => a.off || allTeacherIds.has(a.teacherId))));
+  assert.ok(main.every((x) => resolveAssignments(x.assignments).every((a) => a.off || allTeacherIds.has(a.teacherId))), "zusammengelegte Gruppen übernehmen die Lehrperson der Leitgruppe");
   assert.deepEqual(planningWarnings(main, groups, [founder, ...teachers]), []);
 });
 
@@ -577,4 +580,64 @@ test("uniqueInitials: weicht bei Kollisionen sinnvoll aus", () => {
   assert.equal(uniqueInitials("Anna Meier", ["AM", "AMe"]), "AnM");
   assert.equal(uniqueInitials("Dani", ["DA"]), "Dan");
   assert.equal(uniqueInitials("Al Bo", ["AB", "ABo", "AlB"]), "AB2");
+});
+
+// ---------------------------------------------------------------------------
+// Gruppen zusammenlegen
+// ---------------------------------------------------------------------------
+
+const G: Group[] = [
+  { id: "g3", name: "3. Klasse", short: "3.", color: "#a", children: "A01, A02", sortOrder: 0 },
+  { id: "g4", name: "4. Klasse", short: "4.", color: "#b", children: "B01", sortOrder: 1 },
+  { id: "g5", name: "5. Klasse", short: "5.", color: "#c", children: "C01", sortOrder: 2 },
+];
+
+test("resolveAssignments: zusammengelegte Gruppe übernimmt Lehrperson, Fach und Raum der Leitgruppe", () => {
+  const a = [
+    { groupId: "g3", teacherId: "t1", coTeacherId: "t2", subject: "Mathe", room: "Kreis" },
+    { groupId: "g4", teacherId: "", withGroupId: "g3" },
+    { groupId: "g5", teacherId: "t3", subject: "Deutsch" },
+  ];
+  const r = resolveAssignments(a);
+  assert.deepEqual(r[1], { groupId: "g4", teacherId: "t1", coTeacherId: "t2", subject: "Mathe", room: "Kreis", withGroupId: "g3" });
+  assert.deepEqual(r[2], a[2]);
+  assert.deepEqual(sessionTeacherIds(makeSession("s", "mo", 0, { assignments: a })), ["t1", "t2", "t3"]);
+  assert.equal(isVisibleFor(makeSession("s", "mo", 0, { assignments: a }), "t1"), true);
+  assert.equal(deriveTitle(a, "x"), "Mathe · Deutsch");
+});
+
+test("groupClusters: bündelt zusammengelegte Gruppen zu einer Zeile", () => {
+  const a = [
+    { groupId: "g3", teacherId: "t1", subject: "Sport" },
+    { groupId: "g4", teacherId: "", withGroupId: "g3" },
+    { groupId: "g5", teacherId: "t2", subject: "TTG" },
+  ];
+  const clusters = groupClusters(a, G);
+  assert.equal(clusters.length, 2);
+  assert.deepEqual(clusters[0].groups.map((g) => g.id), ["g3", "g4"]);
+  assert.equal(clusters[0].assignment.teacherId, "t1");
+  assert.deepEqual(clusters[1].groups.map((g) => g.id), ["g5"]);
+});
+
+test("setAssignment/mergeCandidates: Zusammenlegen löscht eigene Angaben, keine Zyklen", () => {
+  let a: Assignment[] = [{ groupId: "g3", teacherId: "t1", subject: "Mathe" }, { groupId: "g4", teacherId: "t2", subject: "Deutsch", room: "Aula" }];
+  a = setAssignment(a, "g4", { withGroupId: "g3" });
+  const g4 = a.find((x) => x.groupId === "g4")!;
+  assert.deepEqual(g4, { groupId: "g4", teacherId: "", withGroupId: "g3" });
+  // g3 darf sich nicht mit g4 zusammenlegen (g4 hängt schon an g3); g5 kann an g3, nicht an g4
+  assert.deepEqual(mergeCandidates(a, G, "g3").map((g) => g.id), ["g5"]);
+  assert.deepEqual(mergeCandidates(a, G, "g5").map((g) => g.id), ["g3"]);
+  // Auflösen stellt eine eigenständige Gruppe wieder her
+  a = setAssignment(a, "g4", { withGroupId: undefined, teacherId: "t2" });
+  assert.deepEqual(a.find((x) => x.groupId === "g4"), { groupId: "g4", teacherId: "t2" });
+});
+
+test("planningWarnings: zusammengelegte Gruppen erzeugen keine Warnung", () => {
+  const teachers: Teacher[] = ["t1", "t2", "t3"].map((id, i) => ({ id, name: id, initials: id, color: "#000", active: true, sortOrder: i }));
+  const s = makeSession("s", "mo", 0, { title: "Mathe", assignments: [
+    { groupId: "g3", teacherId: "t1", subject: "Mathe" },
+    { groupId: "g4", teacherId: "", withGroupId: "g3" },
+    { groupId: "g5", teacherId: "t2", subject: "Deutsch" },
+  ] });
+  assert.deepEqual(planningWarnings([s], G, teachers), []);
 });

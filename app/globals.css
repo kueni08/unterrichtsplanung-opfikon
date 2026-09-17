@@ -92,10 +92,11 @@ button, input, textarea { font: inherit; } button { cursor: pointer; }
 .card-drag-handle { width: 15px; min-width: 15px; height: 20px; display: inline-flex; align-items: center; justify-content: center; margin: -3px 0 0 -5px; color: #91a2b2; }
 .card-drag-handle svg { width: 15px; height: 15px; }
 .session-card>p { margin: 4px 0 7px; color: #718194; font-size: 11px; line-height: 1.3; } .status-pill { padding: 2px 5px; border-radius: 99px; background: #ffffffcc; color: #6d7e90; font-size: 9px; font-weight: 800; text-transform: uppercase; white-space: nowrap; }
-.assignment-list { display: grid; gap: 3px; } .assignment { min-width: 0; display: grid; grid-template-columns: 9px 1fr auto; align-items: center; gap: 5px; font-size: 10px; }
+.assignment-list { display: grid; gap: 3px; } .assignment { min-width: 0; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 5px; font-size: 10px; }
 .assignment b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .assignment>span:last-child { color: #5d7083; font-weight: 800; }
-.group-dot { width: 8px; height: 8px; border-radius: 3px; } .all-dot { background: #a98bc4; } .all-assignment { grid-template-columns: 9px auto 1fr; color: #76599b; } .teacher-mini-list { text-align: right; }
-.assignment { grid-template-columns: 9px 1fr auto; row-gap: 0; }
+.group-dot { width: 8px; height: 8px; border-radius: 3px; } .group-dots { display: inline-flex; gap: 2px; } .group-dots .group-dot { width: 6px; height: 8px; border-radius: 2px; } .group-dots .group-dot:only-child { width: 8px; border-radius: 3px; }
+.assignment.is-merged b { color: #3f5670; } .all-dot { background: #a98bc4; } .all-assignment { grid-template-columns: 9px auto 1fr; color: #76599b; } .teacher-mini-list { text-align: right; }
+.assignment { grid-template-columns: auto 1fr auto; row-gap: 0; }
 .assignment.is-off { opacity: .62; }
 .teacher-free,.teacher-open { color: #8a97a5; font-weight: 700; font-style: italic; }
 .assignment-detail { grid-column: 2/3; display: block; color: #93a3b2; font-weight: 600; font-style: normal; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
@@ -327,3 +328,8 @@ button, input, textarea { font: inherit; } button { cursor: pointer; }
 .participant-list { display: flex; flex-wrap: wrap; gap: 8px; }
 .participant-list label { display: flex; align-items: center; gap: 7px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 9px; background: #fff; font-size: 13px; }
 @media print { .period-row.is-meeting,.lesson-cell.meeting-cell,.timeline-row.slot-meeting { background: #f6e6b8 !important; } }
+
+/* Gruppen zusammenlegen */
+.merge-row { display: grid; grid-template-columns: 16px 1fr; align-items: center; gap: 8px; margin: 6px 0 4px; color: #5b7088; }
+.responsibility-block.is-merged { background: #f3f6f9; border-style: dashed; }
+.merge-hint { margin: 4px 0 0; color: #5b7088; font-size: 12px; line-height: 1.4; }

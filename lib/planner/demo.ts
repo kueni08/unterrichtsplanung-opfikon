@@ -63,6 +63,12 @@ const KASTANIE_DAYS: Record<DayKey, { present: T[]; note?: string }> = {
   fr: { present: ["Dani", "Andrea", "Coni"] },
 };
 
+/** Index der ersten Zelle mit identischem Inhalt (Leitgruppe beim Zusammenlegen) */
+function leadGroupIndex(cells: Cell[], index: number): number {
+  const key = JSON.stringify(cells[index]);
+  return cells.findIndex((c) => c !== "frei" && JSON.stringify(c) === key);
+}
+
 type Row = [DayKey, number, string, string, string, T[] | "all"];
 const PROJECT_WEEK: Row[] = [
   ["mo", 1, "Projekt-Kickoff", "Frage & Teams", "Aula", "all"],
@@ -160,6 +166,12 @@ export function buildStarterContent(
       return { ...base, title: cell.subject, focus: cell.focus ?? "", room: cell.room ?? "", notes: text(cell.notes ?? ""), wholeClass: true, assignments };
     }
     const assignments = groups.map((g, i) => toAssignment(entry.perGroup[i], g));
+    // Gruppen mit identischem Unterricht (Fach, Lehrpersonen, Raum) werden zusammengelegt
+    entry.perGroup.forEach((cell, i) => {
+      if (cell === "frei") return;
+      const lead = entry.perGroup.findIndex((other, j) => j < i && other !== "frei" && JSON.stringify(other) === JSON.stringify(cell));
+      if (lead >= 0) assignments[i] = { groupId: groups[i].id, teacherId: "", withGroupId: groups[leadGroupIndex(entry.perGroup, lead)].id };
+    });
     const active = entry.perGroup.filter((x): x is Exclude<Cell, "frei"> => x !== "frei");
     const sharedRoom = active.every((x) => x.room === active[0]?.room) ? active[0]?.room ?? "" : "";
     return { ...base, title: deriveTitle(assignments, "Lektion"), focus: "", room: sharedRoom, notes: "", wholeClass: false, assignments };

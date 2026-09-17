@@ -15,6 +15,8 @@ export type Assignment = {
   room?: string;
   /** Gruppe hat in dieser Lektion frei */
   off?: boolean;
+  /** wird zusammen mit dieser Gruppe unterrichtet und übernimmt deren Lehrpersonen, Fach und Raum */
+  withGroupId?: string;
 };
 
 export type Session = {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarArrowDown, Check, CircleAlert, CopyPlus, Mail, Trash2 } from "lucide-react";
+import { CalendarArrowDown, Check, CircleAlert, CopyPlus, Mail, Trash2, UsersRound } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { DAYS, SLOTS, isMeetingSlot, slotKind, tint } from "@/lib/planner/constants";
 import { addDays, parseIsoDate, isoDate } from "@/lib/planner/dates";
 import { buildIcs, icsFileName, inviteBody, inviteDetails, mailtoLink } from "@/lib/planner/invite";
-import { countChildren, deriveTitle, meetingParticipants, setAssignment, setParticipants } from "@/lib/planner/logic";
+import { countChildren, deriveTitle, meetingParticipants, mergeCandidates, setAssignment, setParticipants } from "@/lib/planner/logic";
 import type { PlannerApi } from "@/hooks/use-planner";
 import type { Assignment, DayKey, PlannerSnapshot, Session, SessionStatus } from "@/lib/planner/types";
 
@@ -153,16 +153,33 @@ export function LessonSheet({ session, api, snapshot, isCoordinator, templateId,
               {snapshot.groups.map((group) => {
                 const assignment = session.assignments.find((a) => a.groupId === group.id);
                 const isOff = assignment?.off ?? false;
+                const mergedWith = assignment?.withGroupId ? snapshot.groups.find((g) => g.id === assignment.withGroupId) : null;
+                const candidates = mergeCandidates(session.assignments, snapshot.groups, group.id);
                 return (
-                  <div className="responsibility-block" key={group.id}>
+                  <div className={`responsibility-block ${mergedWith ? "is-merged" : ""}`} key={group.id}>
                     <div className="responsibility-head">
                       <span className="group-tag" style={{ background: tint(group.color, "28"), color: group.color }}><i style={{ background: group.color }} />{group.name}</span>
-                      <label className="off-toggle">
-                        <Checkbox disabled={readOnly} checked={isOff} onCheckedChange={(checked) => patchAssignment(group.id, { off: checked === true })} />
-                        frei
-                      </label>
+                      {!mergedWith && (
+                        <label className="off-toggle">
+                          <Checkbox disabled={readOnly} checked={isOff} onCheckedChange={(checked) => patchAssignment(group.id, { off: checked === true })} />
+                          frei
+                        </label>
+                      )}
                     </div>
-                    {!isOff && (
+                    {candidates.length > 0 && (
+                      <div className="merge-row">
+                        <UsersRound size={14} aria-hidden="true" />
+                        <Select disabled={readOnly} value={assignment?.withGroupId || "none"} onValueChange={(value) => patchAssignment(group.id, { withGroupId: value === "none" ? undefined : value })}>
+                          <SelectTrigger aria-label={`${group.name} zusammen mit`}><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">eigene Gruppe</SelectItem>
+                            {candidates.map((g) => <SelectItem key={g.id} value={g.id}>zusammen mit {g.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    {mergedWith && <p className="merge-hint">Wird gemeinsam mit <strong>{mergedWith.name}</strong> unterrichtet und übernimmt deren Lehrperson, Fach und Raum.</p>}
+                    {!isOff && !mergedWith && (
                       <div className="responsibility-fields">
                         <Select disabled={readOnly} value={assignment?.teacherId || "none"} onValueChange={(value) => patchAssignment(group.id, { teacherId: value === "none" ? "" : value })}>
                           <SelectTrigger aria-label={`Lehrperson ${group.name}`}><SelectValue placeholder="Lehrperson" /></SelectTrigger>

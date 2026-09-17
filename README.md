@@ -5,6 +5,7 @@ Digitale Wochenplanung für altersdurchmischte Klassen und Teamteaching an der S
 ## Was die App kann
 
 - **Tagesstruktur mit Terminen** – neben den 7 Lektionen gibt es Zeitfenster über Mittag (12:05–13:35) und am Abend (16:00–19:30) für Sitzungen, Elterngespräche und Elternabende; optisch klar abgesetzt, mit Teilnehmenden und Einladung per E-Mail-Entwurf und Kalenderdatei (.ics).
+- **Gruppen zusammenlegen** – zwei Gruppen in einer Lektion als eine Einheit mit einer Lehrperson planen („zusammen mit …“), ohne gleich die ganze Klasse zu wählen.
 - **Wochenplan** – Lektionen pro Tag und Zeitfenster planen, per Drag & Drop (oder über den Knopf „Verschieben“ auf Tablets) verschieben, in die nächste freie Lektion übertragen und mit Status (geplant, offen, erledigt, übertragen) versehen.
 - **Tagesfokus** – Anwesenheit der Lehrpersonen, eine Tagesnotiz fürs ganze Team und bis zu zwei Sitzungen pro Tag festhalten.
 - **Vorlagen** – jedes neue Team startet mit „Stundenplan Kastanie SJ 26/27“ und „Projektwoche“. Die Koordination pflegt deren Bausteine, Standard-Anwesenheit und Tagesnotizen; neue Wochen entstehen mit einem Klick daraus (mit Vorschau für alle).
