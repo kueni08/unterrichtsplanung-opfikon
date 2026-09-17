@@ -11,6 +11,7 @@ import {
   deriveTitle,
   findFreeSlot,
   initialsFrom,
+  uniqueInitials,
   isVisibleFor,
   meetingParticipants,
   normalizeDays,
@@ -563,4 +564,17 @@ test("planningWarnings: Termine lösen keine Gruppen-Warnungen aus", () => {
   assert.deepEqual(planningWarnings([meeting], groups, teachers), []);
   const withInactive = makeSession("m2", "mo", 8, { title: "Gespräch", assignments: setParticipants(["t9"]) });
   assert.deepEqual(planningWarnings([withInactive], groups, teachers), ["Gespräch: Eine teilnehmende Lehrperson ist nicht aktiv."]);
+});
+
+test("initialsFrom: nimmt Vor- und Nachnamen, auch bei Doppelnamen", () => {
+  assert.equal(initialsFrom("Anna-Lena Meier Huber"), "AH");
+  assert.equal(initialsFrom("  Dani  "), "DA");
+});
+
+test("uniqueInitials: weicht bei Kollisionen sinnvoll aus", () => {
+  assert.equal(uniqueInitials("Andrea Muster", []), "AM");
+  assert.equal(uniqueInitials("Anna Meier", ["AM"]), "AMe");
+  assert.equal(uniqueInitials("Anna Meier", ["AM", "AMe"]), "AnM");
+  assert.equal(uniqueInitials("Dani", ["DA"]), "Dan");
+  assert.equal(uniqueInitials("Al Bo", ["AB", "ABo", "AlB"]), "AB2");
 });

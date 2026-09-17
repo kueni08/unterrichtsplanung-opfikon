@@ -1,5 +1,5 @@
 import { TEACHER_PALETTE } from "./constants.ts";
-import { cloneTemplateToWeek, daysFromTemplate, deriveTitle, initialsFrom, makeSession, newId, setParticipants } from "./logic.ts";
+import { cloneTemplateToWeek, daysFromTemplate, deriveTitle, makeSession, newId, setParticipants, uniqueInitials } from "./logic.ts";
 import type { Assignment, DayKey, Group, PlannerSnapshot, Session, Teacher, Template, WeekDays } from "./types.ts";
 
 /**
@@ -127,7 +127,7 @@ export function buildStarterContent(
     const match = existing.find((t) => sameName(t.name, label(name)));
     if (match) { idOf[name] = match.id; return; }
     const teacher: Teacher = {
-      id: newId(), name: label(name), initials: initialsFrom(label(name)),
+      id: newId(), name: label(name), initials: uniqueInitials(label(name), [...existing, ...newTeachers].map((t) => t.initials)),
       color: TEACHER_PALETTE[(existing.length + newTeachers.length) % TEACHER_PALETTE.length],
       active: true, sortOrder: existing.length + i,
     };

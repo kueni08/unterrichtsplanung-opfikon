@@ -167,13 +167,13 @@ export function AdminView({ api, snapshot, mode, selectedTemplateId, onSelectTem
         </article>
 
         <article className="admin-card team-card">
-          <div className="card-heading"><span className="icon-box mint"><Users /></span><div><h3>Lehrpersonen</h3><p>Team und Kürzel</p></div></div>
+          <div className="card-heading"><span className="icon-box mint"><Users /></span><div><h3>Lehrpersonen</h3><p>Vollständige Namen; das Kürzel für den Wochenplan entsteht aus den Anfangsbuchstaben und lässt sich anpassen</p></div></div>
           <div className="settings-list">
             {snapshot.teachers.map((teacher) => (
               <TeacherRow key={teacher.id} teacher={teacher} onChange={(patch) => api.updateTeacher(teacher.id, patch)} />
             ))}
             <div className="add-teacher-row">
-              <Input value={newTeacherName} onChange={(e) => setNewTeacherName(e.target.value)} placeholder="Name der Lehrperson" aria-label="Name neue Lehrperson" />
+              <Input value={newTeacherName} onChange={(e) => setNewTeacherName(e.target.value)} placeholder="Vorname Nachname" aria-label="Name neue Lehrperson" />
               <Button type="button" variant="outline" onClick={handleAddTeacher}><Plus /> Lehrperson ohne Konto hinzufügen</Button>
             </div>
           </div>
@@ -186,11 +186,12 @@ export function AdminView({ api, snapshot, mode, selectedTemplateId, onSelectTem
 
 function TeacherRow({ teacher, onChange }: { teacher: Teacher; onChange: (patch: Partial<Teacher>) => void }) {
   return (
-    <label className="teacher-setting">
-      <Checkbox checked={teacher.active} onCheckedChange={(checked) => onChange({ active: checked === true })} />
+    <div className="teacher-setting">
+      <Checkbox checked={teacher.active} onCheckedChange={(checked) => onChange({ active: checked === true })} aria-label={`${teacher.name} aktiv`} />
       <span className="teacher-avatar" style={{ background: teacher.color }}>{teacher.initials}</span>
-      <Input value={teacher.name} onChange={(e) => onChange({ name: e.target.value })} aria-label="Name Lehrperson" />
-    </label>
+      <Input value={teacher.name} onChange={(e) => onChange({ name: e.target.value })} aria-label="Name Lehrperson" placeholder="Vorname Nachname" />
+      <Input className="initials-input" value={teacher.initials} maxLength={4} onChange={(e) => onChange({ initials: e.target.value })} aria-label={`Kürzel ${teacher.name}`} title="Kürzel im Wochenplan (max. 4 Zeichen)" />
+    </div>
   );
 }
 

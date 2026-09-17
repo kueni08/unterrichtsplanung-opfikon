@@ -26,11 +26,37 @@ export function normalizeDays(raw: unknown, teachers: Teacher[]): WeekDays {
   return base;
 }
 
+/** Kürzel aus den Anfangsbuchstaben: „Andrea Muster“ → AM, „Anna-Lena Meier Huber“ → AH, „Dani“ → DA. */
 export function initialsFrom(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
-  const letters = parts.length > 1 ? parts[0][0] + parts[1][0] : parts[0].slice(0, 2);
+  const letters = parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : parts[0].slice(0, 2);
   return letters.toUpperCase();
+}
+
+/**
+ * Eindeutiges Kürzel im Team: erst Anfangsbuchstaben, bei Kollision zusätzlich
+ * ein zweiter Buchstabe des Nachnamens (AMu), dann des Vornamens (AnM), zuletzt eine Zahl.
+ */
+export function uniqueInitials(name: string, taken: Iterable<string>): string {
+  const used = new Set([...taken].map((x) => x.toUpperCase()));
+  const base = initialsFrom(name);
+  if (!used.has(base)) return base;
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const candidates: string[] = [];
+  if (parts.length > 1) {
+    const first = parts[0];
+    const last = parts[parts.length - 1];
+    candidates.push(first[0] + last.slice(0, 2), first.slice(0, 2) + last[0], first[0] + last.slice(0, 3));
+  } else if (parts.length === 1) {
+    candidates.push(parts[0].slice(0, 3), parts[0].slice(0, 4));
+  }
+  for (const c of candidates) {
+    const cand = c[0].toUpperCase() + c.slice(1);
+    if (cand.length >= 2 && !used.has(cand.toUpperCase())) return cand;
+  }
+  for (let n = 2; n < 100; n += 1) if (!used.has(`${base}${n}`)) return `${base}${n}`;
+  return base;
 }
 
 export function countChildren(groups: Group[]): number {

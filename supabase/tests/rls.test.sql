@@ -96,7 +96,13 @@ select public.join_team(:'join_code', 'Kim Berger');
 select pg_temp.expect((select count(*) from public.team_members where team_id = :'team_id') = 2, 'Doppelter Beitritt erzeugt keinen zweiten Eintrag');
 select pg_temp.expect((select role from public.team_members where user_id = '00000000-0000-0000-0000-00000000000b') = 'lehrperson', 'Beigetreten als Lehrperson');
 select pg_temp.expect((select count(*) from public.teachers where team_id = :'team_id') = 2, 'Vorhandenes Profil „Kim“ wird verknüpft statt dupliziert');
-select pg_temp.expect((select t.name from public.team_members m join public.teachers t on t.id = m.teacher_id where m.user_id = '00000000-0000-0000-0000-00000000000b') = 'Kim', 'Verknüpfung per Vorname');
+select pg_temp.expect((select t.name from public.team_members m join public.teachers t on t.id = m.teacher_id where m.user_id = '00000000-0000-0000-0000-00000000000b') = 'Kim Berger', 'Verknüpfung per Vorname übernimmt den vollständigen Namen');
+select pg_temp.expect((select t.initials from public.team_members m join public.teachers t on t.id = m.teacher_id where m.user_id = '00000000-0000-0000-0000-00000000000b') = 'KB', 'Kürzel aus Anfangsbuchstaben von Vor- und Nachname');
+select pg_temp.expect((select initials from public.teachers where team_id = :'team_id' and name = 'Lara Meier') = 'LM', 'Gründerin erhält Kürzel LM');
+reset role;
+insert into public.teachers (team_id, name, initials) values (:'team_id', 'Kai Bühler', public.unique_initials(:'team_id', 'Kai Bühler'));
+select pg_temp.expect((select initials from public.teachers where team_id = :'team_id' and name = 'Kai Bühler') = 'KBü', 'Kollision KB → KBü');
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000b');
 
 -- darf Wochen planen
 update public.sessions set title = 'Deutsch · Lesespuren' where id = '20000000-0000-0000-0000-000000000001';
