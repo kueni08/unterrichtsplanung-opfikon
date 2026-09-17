@@ -1,24 +1,67 @@
-# Unterrichtsplanung Opfikon
+# Wochenatelier – Unterrichtsplanung Opfikon
 
-Digitale Wochenplanung für altersdurchmischte Klassen und Teamteaching.
+Digitale Wochenplanung für altersdurchmischte Klassen und Teamteaching an der Schule Opfikon. Ein Team von Lehrpersonen plant gemeinsam und in Echtzeit, wer wann mit welcher Gruppe was macht – von der Wochenübersicht bis zum Tagesfokus mit Anwesenheiten und Sitzungen.
+
+## Was die App kann
+
+- **Wochenplan** – Lektionen pro Tag und Zeitfenster planen, per Drag & Drop (oder über den Knopf „Verschieben“ auf Tablets) verschieben, in die nächste freie Lektion übertragen und mit Status (geplant, offen, erledigt, übertragen) versehen.
+- **Tagesfokus** – Anwesenheit der Lehrpersonen, eine Tagesnotiz fürs ganze Team und bis zu zwei Sitzungen pro Tag festhalten.
+- **Vorlagen** – wiederkehrende Wochenmuster (z. B. Regelwoche, Projektwoche) als Bausteine anlegen und mit einem Klick als neue Woche übernehmen.
+- **Admin-Bereich** – Teamname, Rollen, Gruppen mit Kürzeln, Lehrpersonen (auch ohne eigenes Konto) und Vorlagen verwalten sowie einen JSON-Export als Backup erstellen.
+- **Realtime-Zusammenarbeit** – Änderungen erscheinen sofort bei allen Teammitgliedern, inklusive Anzeige, wer gerade online ist.
+- **Rollen** – *Koordination* verwaltet Team, Stammdaten und Vorlagen; *Lehrperson* plant im Team mit. Eine persönliche Ansicht zeigt die eigenen Lektionen hervorgehoben, fremde Lektionen abgeschwächt.
+- **Demo-Modus** – die Anwendung lässt sich ohne Konto und ohne Server mit Beispieldaten ausprobieren (Daten bleiben nur im Browser).
+- **Datenschutz** – Kinder werden ausschliesslich mit Kürzeln erfasst (z. B. A01), nie mit Namen oder weiteren Angaben.
+
+Eine ausführliche Bedienungsanleitung für Lehrpersonen und Koordination steht in [`docs/ANLEITUNG.md`](docs/ANLEITUNG.md), die technische Einrichtung (Supabase, Deployment, RLS) in [`docs/EINRICHTUNG.md`](docs/EINRICHTUNG.md).
 
 ## Direkt testen
 
-Nach erfolgreichem GitHub-Pages-Build ist die Anwendung hier erreichbar:
+Live-Version: **https://kueni08.github.io/unterrichtsplanung-opfikon/**
 
-`https://kueni08.github.io/unterrichtsplanung-opfikon/`
+Die App kann dort im Demo-Modus ohne Anmeldung ausprobiert werden. Für die produktive Nutzung registrieren sich Lehrpersonen mit E-Mail und Passwort und gründen ein Team oder treten einem bestehenden Team mit Beitrittscode bei.
 
-Testzugänge:
+## Technologie
 
-- **Nici · Lehrperson** – persönliche Ansicht
-- **Koordination · Gesamtansicht** – alle Gruppen und Adminbereich
-- Testpasswort: `Opfikon2026`
-
-Die Testversion verwendet ausschliesslich anonymisierte Kinderkürzel (z. B. A01, B03). Der Login ist eine reine Demo und keine sichere produktive Benutzerverwaltung.
+- [Next.js 16](https://nextjs.org/) (statischer Export, React 19) für die Oberfläche
+- [Supabase](https://supabase.com/) für Authentifizierung, PostgreSQL-Datenbank, Row Level Security und Realtime-Synchronisation
+- [Tailwind CSS](https://tailwindcss.com/) und [Radix UI](https://www.radix-ui.com/) / shadcn-Komponenten für das Design
+- Deployment als statische Seite über **GitHub Pages** (via GitHub Actions)
 
 ## Lokal starten
+
+Voraussetzung: Node.js 22 oder neuer.
 
 ```bash
 npm ci
 npm run dev
 ```
+
+## Tests
+
+```bash
+npm run test:unit   # Unit-Tests für die reine Planungslogik (lib/planner)
+npm run test:db     # RLS-/Datenbanktests gegen eine temporäre lokale PostgreSQL-Instanz
+```
+
+`npm run test:db` benötigt eine lokale PostgreSQL-Installation (Version 15 oder neuer, `initdb`/`pg_ctl`/`psql` im `PATH` oder unter `/usr/lib/postgresql/*/bin`) und darf nicht als root-Benutzer laufen.
+
+## Projektstruktur
+
+```
+app/                     Next.js App Router (Seiten, Layout)
+components/planner/      UI-Komponenten der Wochenplanung
+components/ui/           Wiederverwendbare UI-Bausteine (shadcn)
+hooks/use-planner.ts     Zentraler Planungszustand (optimistisches Speichern, Realtime)
+lib/planner/             Reine Planungslogik, Typen, Demo-Daten, Supabase-Anbindung
+supabase/migrations/     SQL-Migrationen (Tabellen, RLS-Policies, RPCs)
+supabase/tests/          Lokale RLS-/Datenbanktests
+.github/workflows/       CI/CD (Build, Tests, Deployment nach GitHub Pages)
+```
+
+## Supabase-Projekt
+
+- Projekt-Referenz: `gppbxybdteihpoawyxpy`
+- Region: `eu-central-2` (Zürich)
+
+Details zur Einrichtung, den nötigen manuellen Schritten im Supabase-Dashboard, den Migrationen und dem RLS-Modell stehen in [`docs/EINRICHTUNG.md`](docs/EINRICHTUNG.md).
