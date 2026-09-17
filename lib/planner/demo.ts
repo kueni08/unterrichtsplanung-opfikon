@@ -75,13 +75,38 @@ const PROJECT_WEEK: Row[] = [
 
 const codes = (prefix: string) => Array.from({ length: 13 }, (_, i) => `${prefix}${String(i + 1).padStart(2, "0")}`).join(", ");
 
-function starterGroups(): Group[] {
-  return [
-    { id: newId(), name: "3. Klasse", short: "3. Kl.", color: "#E98F82", children: codes("C"), sortOrder: 0 },
-    { id: newId(), name: "4. Klasse", short: "4. Kl.", color: "#6FAFD4", children: codes("D"), sortOrder: 1 },
-    { id: newId(), name: "5. Klasse", short: "5. Kl.", color: "#78B99A", children: codes("E"), sortOrder: 2 },
-  ];
+type GroupSpec = { name: string; short: string; prefix: string };
+const REAL_GROUPS: GroupSpec[] = [
+  { name: "3. Klasse", short: "3. Kl.", prefix: "C" },
+  { name: "4. Klasse", short: "4. Kl.", prefix: "D" },
+  { name: "5. Klasse", short: "5. Kl.", prefix: "E" },
+];
+const GROUP_COLORS = ["#E98F82", "#6FAFD4", "#78B99A"];
+
+function starterGroups(specs: GroupSpec[]): Group[] {
+  return specs.map((g, i) => ({ id: newId(), name: g.name, short: g.short, color: GROUP_COLORS[i], children: codes(g.prefix), sortOrder: i }));
 }
+
+/**
+ * Erfundene, verspielte Namen für die öffentliche Demo und das Werbevideo
+ * (die echten Vornamen aus dem Stundenplan bleiben der Vorlage für echte Teams vorbehalten).
+ */
+const DEMO_NAMES: Record<T, string> = {
+  Dani: "Balduin Blitz",
+  Andrea: "Aurelia Eule",
+  Klara: "Kira Kessel",
+  Nici: "Nika Nachtigall",
+  Coni: "Coco Kobold",
+};
+const DEMO_GROUPS: GroupSpec[] = [
+  { name: "Drachen · 3. Kl.", short: "Drachen", prefix: "DR" },
+  { name: "Einhörner · 4. Kl.", short: "Einhörner", prefix: "EH" },
+  { name: "Greife · 5. Kl.", short: "Greife", prefix: "GR" },
+];
+const DEMO_TEXT: Record<string, string> = {
+  "Dani hat Lead (mit Gitarre).": "Balduin hat Lead (mit Zauberlaute).",
+  "Klara: PICTS": "Kira: Weiterbildung Kristallkugel-Kunde",
+};
 
 const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
   || a.trim().split(/\s+/)[0].toLowerCase() === b.trim().toLowerCase();
@@ -90,14 +115,19 @@ const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().t
  * Startinhalt für ein neues Team: Lehrpersonen, Klassen 3–5, Vorlage „Stundenplan Kastanie SJ 26/27“
  * und eine Projektwoche. Bereits vorhandene Lehrpersonen (z. B. die Gründerin) werden per Vorname zugeordnet.
  */
-export function buildStarterContent(existing: Teacher[] = []): { teachers: Teacher[]; groups: Group[]; templates: Template[]; sessions: Session[] } {
+export function buildStarterContent(
+  existing: Teacher[] = [],
+  options: { demo?: boolean } = {},
+): { teachers: Teacher[]; groups: Group[]; templates: Template[]; sessions: Session[] } {
+  const label = (name: T) => (options.demo ? DEMO_NAMES[name] : name);
+  const text = (value: string) => (options.demo ? DEMO_TEXT[value] ?? value : value);
   const newTeachers: Teacher[] = [];
   const idOf = {} as Record<T, string>;
   KASTANIE_TEACHERS.forEach((name, i) => {
-    const match = existing.find((t) => sameName(t.name, name));
+    const match = existing.find((t) => sameName(t.name, label(name)));
     if (match) { idOf[name] = match.id; return; }
     const teacher: Teacher = {
-      id: newId(), name, initials: initialsFrom(name),
+      id: newId(), name: label(name), initials: initialsFrom(label(name)),
       color: TEACHER_PALETTE[(existing.length + newTeachers.length) % TEACHER_PALETTE.length],
       active: true, sortOrder: existing.length + i,
     };
@@ -105,12 +135,12 @@ export function buildStarterContent(existing: Teacher[] = []): { teachers: Teach
     idOf[name] = teacher.id;
   });
 
-  const groups = starterGroups();
+  const groups = starterGroups(options.demo ? DEMO_GROUPS : REAL_GROUPS);
   const days = Object.fromEntries(Object.entries(KASTANIE_DAYS).map(([day, v]) => [day, {
-    attendance: v.present.map((n) => idOf[n]), note: v.note ?? "", meetings: [],
+    attendance: v.present.map((n) => idOf[n]), note: text(v.note ?? ""), meetings: [],
   }])) as unknown as WeekDays;
   const templates: Template[] = [
-    { id: newId(), name: "Stundenplan Kastanie SJ 26/27", sortOrder: 0, days },
+    { id: newId(), name: options.demo ? "Stundenplan Eulenturm" : "Stundenplan Kastanie SJ 26/27", sortOrder: 0, days },
     { id: newId(), name: "Projektwoche", sortOrder: 1, days },
   ];
 
@@ -127,7 +157,7 @@ export function buildStarterContent(existing: Teacher[] = []): { teachers: Teach
         delete a.subject; delete a.room;
         return a;
       });
-      return { ...base, title: cell.subject, focus: cell.focus ?? "", room: cell.room ?? "", notes: cell.notes ?? "", wholeClass: true, assignments };
+      return { ...base, title: cell.subject, focus: cell.focus ?? "", room: cell.room ?? "", notes: text(cell.notes ?? ""), wholeClass: true, assignments };
     }
     const assignments = groups.map((g, i) => toAssignment(entry.perGroup[i], g));
     const active = entry.perGroup.filter((x): x is Exclude<Cell, "frei"> => x !== "frei");
@@ -145,31 +175,31 @@ export function buildStarterContent(existing: Teacher[] = []): { teachers: Teach
 }
 
 export const DEMO_USERS = {
-  koordination: { userId: "demo-koordination", displayName: "Andrea", role: "koordination" as const },
-  lehrperson: { userId: "demo-lehrperson", displayName: "Nici", role: "lehrperson" as const },
+  koordination: { userId: "demo-koordination", displayName: DEMO_NAMES.Andrea, role: "koordination" as const },
+  lehrperson: { userId: "demo-lehrperson", displayName: DEMO_NAMES.Nici, role: "lehrperson" as const },
 };
 
 export function buildDemoSnapshot(weekStart: string): PlannerSnapshot {
-  const content = buildStarterContent([]);
+  const content = buildStarterContent([], { demo: true });
   const teachers = content.teachers;
-  const id = (name: T) => teachers.find((t) => t.name === name)?.id ?? "";
+  const id = (name: T) => teachers.find((t) => t.name === DEMO_NAMES[name])?.id ?? "";
   const main = content.templates[0];
   const week = cloneTemplateToWeek(content.sessions.filter((s) => s.templateId === main.id), weekStart);
   // etwas Leben in die Demo-Woche bringen
   const monday = week.filter((s) => s.day === "mo").sort((a, b) => a.slot - b.slot);
   if (monday[1]) monday[1].status = "done";
-  if (monday[2]) { monday[2].status = "open"; monday[2].notes = "Einmaleins-Training noch nicht abgeschlossen. 4. Klasse braucht zusätzliche Begleitung."; }
+  if (monday[2]) { monday[2].status = "open"; monday[2].notes = "Einmaleins-Training noch nicht abgeschlossen. Die Einhörner brauchen zusätzliche Begleitung."; }
   const days = daysFromTemplate(main.days, teachers);
-  days.mo = { ...days.mo, note: "10:00 Uhr: Besuch der Schulsozialarbeit.", meetings: [{ time: "16:15", title: "Stufensitzung" }] };
-  days.di = { ...days.di, note: "Turnhalle ab 13:40 Uhr reserviert.", meetings: [] };
-  days.mi = { ...days.mi, meetings: [{ time: "12:15", title: "Kurzabsprache IF" }] };
-  days.do = { ...days.do, meetings: [{ time: "16:10", title: "Elterngespräch" }, { time: "17:00", title: "Teamplanung" }] };
-  days.fr = { ...days.fr, note: "Bibliotheksbücher mitgeben." };
+  days.mo = { ...days.mo, note: "10:00 Uhr: Die Schuleule bringt die Post.", meetings: [{ time: "16:15", title: "Stufensitzung" }] };
+  days.di = { ...days.di, note: "Turnhalle ab 13:40 Uhr für das Besenflug-Training reserviert.", meetings: [] };
+  days.mi = { ...days.mi, meetings: [{ time: "12:15", title: "Kurzabsprache Zaubertrank-Labor" }] };
+  days.do = { ...days.do, meetings: [{ time: "16:10", title: "Elterngespräch" }, { time: "17:00", title: "Teamplanung im Eulenturm" }] };
+  days.fr = { ...days.fr, note: "Bibliotheksbücher zurückbringen – bitte keine fliegenden." };
   return {
-    team: { id: "demo", name: "Kastanie · Schule Opfikon", joinCode: "DEMO2026" },
+    team: { id: "demo", name: "Eulenturm · Demo-Schule", joinCode: "EULE2026" },
     members: [
-      { userId: DEMO_USERS.koordination.userId, displayName: "Andrea", role: "koordination", teacherId: id("Andrea") },
-      { userId: DEMO_USERS.lehrperson.userId, displayName: "Nici", role: "lehrperson", teacherId: id("Nici") },
+      { userId: DEMO_USERS.koordination.userId, displayName: DEMO_NAMES.Andrea, role: "koordination", teacherId: id("Andrea") },
+      { userId: DEMO_USERS.lehrperson.userId, displayName: DEMO_NAMES.Nici, role: "lehrperson", teacherId: id("Nici") },
     ],
     teachers,
     groups: content.groups,

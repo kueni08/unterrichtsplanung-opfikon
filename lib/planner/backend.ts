@@ -19,7 +19,7 @@ export interface PlannerBackend {
   reset?(): Promise<PlannerSnapshot>;
 }
 
-const DEMO_KEY = "wochenatelier-demo-v4";
+const DEMO_KEY = "wochenatelier-demo-v5";
 
 export function createLocalBackend(factory: () => PlannerSnapshot): PlannerBackend {
   const read = (): PlannerSnapshot | null => {

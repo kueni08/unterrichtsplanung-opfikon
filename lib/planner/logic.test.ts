@@ -499,3 +499,13 @@ test("buildStarterContent: Stundenplan Kastanie with 5 teachers, classes 3–5, 
   assert.ok(main.every((x) => x.assignments.every((a) => a.off || allTeacherIds.has(a.teacherId))));
   assert.deepEqual(planningWarnings(main, groups, [founder, ...teachers]), []);
 });
+
+test("buildDemoSnapshot uses invented names only (no real teacher names from the timetable)", () => {
+  const snap = buildDemoSnapshot("2026-09-14");
+  const text = JSON.stringify(snap);
+  for (const real of ["Dani", "Andrea", "Klara", "Nici", "Coni", "Kastanie", "PICTS"]) {
+    assert.equal(text.includes(real), false, `${real} darf in der Demo nicht vorkommen`);
+  }
+  assert.deepEqual(snap.teachers.map((t) => t.initials), ["BB", "AE", "KK", "NN", "CK"]);
+  assert.equal(DEMO_USERS.koordination.displayName, "Aurelia Eule");
+});
