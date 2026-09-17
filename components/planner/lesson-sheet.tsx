@@ -22,11 +22,13 @@ const STATUS_OPTIONS: { value: SessionStatus; label: string }[] = [
   { value: "done", label: "Erledigt" },
 ];
 
-export function LessonSheet({ session, api, snapshot, isCoordinator, onOpenChange }: {
+export function LessonSheet({ session, api, snapshot, isCoordinator, templateId, onOpenChange }: {
   session: Session | null;
   api: PlannerApi;
   snapshot: PlannerSnapshot;
   isCoordinator: boolean;
+  /** Vorlage für eine Folgewoche, die beim Übertragen neu angelegt werden muss */
+  templateId?: string;
   onOpenChange: (open: boolean) => void;
 }) {
   const [confirmRemove, setConfirmRemove] = useState(false);
@@ -38,7 +40,7 @@ export function LessonSheet({ session, api, snapshot, isCoordinator, onOpenChang
   const kind: "week" | "template" = session.templateId ? "template" : "week";
   const readOnly = kind === "template" && !isCoordinator;
   const day = DAYS.find((d) => d.id === session.day);
-  const slot = SLOTS[session.slot];
+  const slot = SLOTS[Math.min(Math.max(session.slot, 0), SLOTS.length - 1)];
   const activeTeachers = snapshot.teachers.filter((t) => t.active);
 
   function patch(p: Partial<Session>) {
@@ -77,7 +79,7 @@ export function LessonSheet({ session, api, snapshot, isCoordinator, onOpenChang
   function handleCarry() {
     if (!session!.weekStart) return;
     const nextWeekStart = isoDate(addDays(parseIsoDate(session!.weekStart), 7));
-    const ok = api.carryForward(session!.id, nextWeekStart);
+    const ok = api.carryForward(session!.id, nextWeekStart, templateId);
     if (ok) onOpenChange(false);
   }
 

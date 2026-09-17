@@ -34,6 +34,10 @@ Die Migrationen liegen unter `supabase/migrations/` und werden in Dateinamen-Rei
 | --- | --- |
 | `20260917000000_teamversion.sql` | Tabellen (`teams`, `teachers`, `team_members`, `groups`, `templates`, `weeks`, `sessions`), RPCs (`create_team`, `join_team`, `regenerate_join_code`), RLS-Policies, Realtime-Publikation |
 | `20260917000100_hardening.sql` | Härtung gemäss Supabase-Security-Advisor: RLS-Hilfsfunktionen in ein privates Schema verschoben, interne Funktionen vor direktem API-Zugriff geschützt, zusätzliche Indizes |
+| `20260917000200_kastanie_defaults.sql` | Tagesvorgaben (`templates.days`) und Beitritt, der vorhandene Lehrpersonen-Profile per (Vor-)Namen verknüpft |
+| `20260917000300_review_fixes.sql` | RPC `patch_week_day` (Tagesangaben feldweise speichern), Spaltenrechte für `teams`/`team_members`, Verknüpfung nur mit Lehrpersonen des eigenen Teams, Zeitfenster 0–6 |
+
+**Reihenfolge beim Ausrollen:** Neue Migrationen immer *vor* dem Frontend-Deployment anwenden – die App ruft z. B. `patch_week_day` auf und meldet sonst „Die Datenbank ist nicht auf dem aktuellen Stand“.
 
 ### Anwenden
 
@@ -51,12 +55,12 @@ Alle Tabellen haben Row Level Security aktiviert. Zugriff hat nur, wer über `te
 
 | Tabelle | Lesen | Schreiben |
 | --- | --- | --- |
-| `teams` | alle Teammitglieder | nur Koordination (Team umbenennen) |
-| `team_members` | alle Teammitglieder | Koordination ändert Rollen/Verknüpfungen; Mitglieder können sich selbst entfernen; die Koordination kann auch andere entfernen |
+| `teams` | alle Teammitglieder (inkl. Beitrittscode) | nur Koordination, nur Spalte `name`; neuer Code nur über `regenerate_join_code` |
+| `team_members` | alle Teammitglieder | Koordination ändert nur `role`/`teacher_id` (Lehrperson desselben Teams); Mitglieder können sich selbst entfernen, die Koordination auch andere; Beitritt nur über `join_team` |
 | `teachers` | alle Teammitglieder | nur Koordination |
 | `groups` | alle Teammitglieder | nur Koordination |
 | `templates` | alle Teammitglieder | nur Koordination |
-| `weeks` | alle Teammitglieder | alle Teammitglieder |
+| `weeks` | alle Teammitglieder | alle Teammitglieder (Tagesangaben über `patch_week_day`, RLS gilt) |
 | `sessions` (Wochenlektionen, `week_start` gesetzt) | alle Teammitglieder | alle Teammitglieder |
 | `sessions` (Vorlagenbausteine, `template_id` gesetzt) | alle Teammitglieder | nur Koordination |
 
@@ -68,7 +72,7 @@ Zusätzliche Regeln, die in der Datenbank erzwungen werden:
 
 ## Realtime
 
-Alle Tabellen sind Teil der Supabase-Realtime-Publikation (`supabase_realtime`) mit `replica identity full`, damit Änderungen mit vollständigen Zeilendaten an alle aktiven Teammitglieder übertragen werden. Das ermöglicht die sofortige Zusammenarbeit im Wochenplan sowie die Online-Anzeige.
+Alle Tabellen sind Teil der Supabase-Realtime-Publikation (`supabase_realtime`) mit `replica identity full`. Die App abonniert Einfügungen und Änderungen gefiltert nach Team; Löschungen lassen sich in Supabase Realtime nicht filtern und liefern bei RLS nur den Primärschlüssel – sie werden daher ungefiltert abonniert und in der App anhand der bekannten IDs zugeordnet. Bei jedem Ereignis lädt die App den Teamstand kurz verzögert neu (nicht, solange eigene Änderungen noch gespeichert werden). Gespeichert werden nur die jeweils geänderten Felder, damit gleichzeitige Änderungen an verschiedenen Feldern nicht verloren gehen; bei gleichzeitiger Änderung desselben Feldes gilt die zuletzt gespeicherte. Die Presence-Funktion liefert die Online-Anzeige.
 
 ## GitHub Pages Deployment
 

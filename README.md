@@ -6,10 +6,10 @@ Digitale Wochenplanung für altersdurchmischte Klassen und Teamteaching an der S
 
 - **Wochenplan** – Lektionen pro Tag und Zeitfenster planen, per Drag & Drop (oder über den Knopf „Verschieben“ auf Tablets) verschieben, in die nächste freie Lektion übertragen und mit Status (geplant, offen, erledigt, übertragen) versehen.
 - **Tagesfokus** – Anwesenheit der Lehrpersonen, eine Tagesnotiz fürs ganze Team und bis zu zwei Sitzungen pro Tag festhalten.
-- **Vorlagen** – wiederkehrende Wochenmuster (z. B. Regelwoche, Projektwoche) als Bausteine anlegen und mit einem Klick als neue Woche übernehmen.
-- **Admin-Bereich** – Teamname, Rollen, Gruppen mit Kürzeln, Lehrpersonen (auch ohne eigenes Konto) und Vorlagen verwalten sowie einen JSON-Export als Backup erstellen.
+- **Vorlagen** – jedes neue Team startet mit „Stundenplan Kastanie SJ 26/27“ und „Projektwoche“. Die Koordination pflegt deren Bausteine, Standard-Anwesenheit und Tagesnotizen; neue Wochen entstehen mit einem Klick daraus (mit Vorschau für alle).
+- **Admin-Bereich** – Teamname, Beitrittscode, Rollen, Gruppen mit Kürzeln, Lehrpersonen (auch ohne eigenes Konto) und Vorlagen verwalten sowie einen JSON-Export als Backup erstellen (ein Import ist nicht vorgesehen).
 - **Realtime-Zusammenarbeit** – Änderungen erscheinen sofort bei allen Teammitgliedern, inklusive Anzeige, wer gerade online ist.
-- **Rollen** – *Koordination* verwaltet Team, Stammdaten und Vorlagen; *Lehrperson* plant im Team mit. Eine persönliche Ansicht zeigt die eigenen Lektionen hervorgehoben, fremde Lektionen abgeschwächt.
+- **Rollen** – *Koordination* verwaltet Team, Stammdaten und Vorlagen; *Lehrperson* plant im Team mit (Wochen, Lektionen, Tagesfokus) und sieht Vorlagen nur lesend. Die persönliche Ansicht zeigt die eigenen Lektionen vollständig, fremde nur abgeschwächt mit Titel.
 - **Demo-Modus** – die Anwendung lässt sich ohne Konto und ohne Server mit Beispieldaten ausprobieren (Daten bleiben nur im Browser).
 - **Datenschutz** – Kinder werden ausschliesslich mit Kürzeln erfasst (z. B. A01), nie mit Namen oder weiteren Angaben.
 
@@ -34,8 +34,10 @@ Voraussetzung: Node.js 22 oder neuer.
 
 ```bash
 npm ci
-npm run dev
+npx next dev          # http://localhost:3000
 ```
+
+Ohne weitere Angaben verbindet sich die App mit dem produktiven Supabase-Projekt; über `NEXT_PUBLIC_SUPABASE_URL` und `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` lässt sich ein anderes Projekt wählen. Der Demo-Modus funktioniert auch ohne Verbindung. (`npm run dev` stammt aus der ursprünglichen Projektvorlage und wird für diese App nicht verwendet.)
 
 ## Tests
 

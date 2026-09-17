@@ -6,7 +6,7 @@ import {
   GripVertical, HelpCircle, LayoutGrid, LogOut, Printer, Settings2, TriangleAlert, Users,
 } from "lucide-react";
 
-import { AdminView } from "@/components/planner/admin-view";
+import { AdminView, MiniTemplate } from "@/components/planner/admin-view";
 import { DayView } from "@/components/planner/day-view";
 import { LessonSheet } from "@/components/planner/lesson-sheet";
 import { OwlLogo } from "@/components/planner/owl-logo";
@@ -82,6 +82,9 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
 
   const snapshot = api.snapshot;
   if (!snapshot) return <Splash />;
+
+  // Wer die Koordinationsrolle verliert, landet nicht auf einem leeren Admin-Tab
+  const activeTab = tab === "admin" && !api.isCoordinator ? "week" : tab;
 
   const weekStart = weekStartFor(new Date(), weekOffset);
   const weekDays = snapshot.weeks[weekStart];
@@ -169,7 +172,7 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
         </div>
       </header>
 
-      <Tabs value={tab} onValueChange={(value) => setTab(value as typeof tab)} className="workspace">
+      <Tabs value={activeTab} onValueChange={(value) => setTab(value as typeof tab)} className="workspace">
         <div className="workspace-nav">
           <TabsList variant="line" className="main-tabs">
             <TabsTrigger value="week"><LayoutGrid /> Wochenplan</TabsTrigger>
@@ -242,6 +245,21 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
               <Button onClick={() => api.createWeekFromTemplate(weekStart, selectedTemplateId)}>
                 <CopyPlus /> {snapshot.templates.find((t) => t.id === selectedTemplateId)?.name ?? "Vorlage"} übernehmen
               </Button>
+              {selectedTemplateId && (
+                <div className="template-preview">
+                  <p className="admin-subheading">Vorschau der Vorlage</p>
+                  <MiniTemplate
+                    readOnly
+                    sessions={sessionsIn(snapshot.sessions, { templateId: selectedTemplateId })}
+                    groups={snapshot.groups}
+                    teachers={snapshot.teachers}
+                    onOpen={(day, slot) => {
+                      const block = sessionsIn(snapshot.sessions, { templateId: selectedTemplateId }).find((s) => s.day === day && s.slot === slot);
+                      if (block) setSheetSessionId(block.id);
+                    }}
+                  />
+                </div>
+              )}
             </section>
           ) : (
             <>
@@ -298,6 +316,7 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
         api={api}
         snapshot={snapshot}
         isCoordinator={api.isCoordinator}
+        templateId={selectedTemplateId}
         onOpenChange={(open) => !open && setSheetSessionId(null)}
       />
       <WelcomeTour open={tourOpen} onOpenChange={closeTour} role={api.role} joinCode={snapshot.team.joinCode} />

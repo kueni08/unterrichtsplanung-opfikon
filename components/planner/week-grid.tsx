@@ -63,7 +63,7 @@ export function WeekGrid({ sessions, weekDays, weekStart, groups, teachers, view
               <strong>{dateFmt.format(addDays(monday, dayIndex))}</strong>
               <div className="day-head-meta">
                 <span><Users size={13} /> {meta.attendance.length} LP</span>
-                {(meta.note || meta.meetings.length > 0) && <span className="has-note"><MessageSquareText size={13} /> Info</span>}
+                {(meta.note.trim() || meta.meetings.some((m) => m.time || m.title.trim())) && <span className="has-note"><MessageSquareText size={13} /> Info</span>}
               </div>
             </button>
           );

@@ -1,5 +1,5 @@
 import { DAYS, SLOTS } from "./constants.ts";
-import type { Assignment, DayKey, DayMeta, Group, Session, Teacher, WeekDays } from "./types.ts";
+import type { Assignment, DayKey, DayMeta, Group, Session, Teacher, Template, WeekDays } from "./types.ts";
 
 export const newId = (): string => globalThis.crypto.randomUUID();
 
@@ -195,4 +195,26 @@ export function daysFromTemplate(templateDays: Partial<WeekDays> | null | undefi
     };
   }
   return base;
+}
+
+/**
+ * Inhalt einer neuen Woche aus einer Vorlage (Tagesvorgaben + Lektionen mit neuen IDs).
+ * Ohne passende Vorlage wird die erste verwendet; ohne Vorlagen entsteht eine leere Woche.
+ */
+export function weekFromTemplate(
+  all: Session[], templates: Template[], teachers: Teacher[], templateId: string | null | undefined, weekStart: string,
+): { days: WeekDays; sessions: Session[] } {
+  const template = templates.find((t) => t.id === templateId) ?? templates[0];
+  if (!template) return { days: emptyDays(teachers), sessions: [] };
+  return {
+    days: daysFromTemplate(template.days, teachers),
+    sessions: cloneTemplateToWeek(sessionsIn(all, { templateId: template.id }), weekStart),
+  };
+}
+
+/** Die Felder `keys` eines Objekts (für feldweises Speichern). */
+export function pickFields<T extends object, K extends keyof T>(source: T, keys: Iterable<K>): Pick<T, K> {
+  const result = {} as Pick<T, K>;
+  for (const key of keys) result[key] = source[key];
+  return result;
 }

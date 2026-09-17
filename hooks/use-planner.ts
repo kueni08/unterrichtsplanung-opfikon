@@ -6,8 +6,8 @@ import { toast } from "sonner";
 import type { PlannerBackend } from "@/lib/planner/backend";
 import { DAYS, SLOTS, TEACHER_PALETTE, GROUP_PALETTE } from "@/lib/planner/constants";
 import {
-  applyChanged, carryForwardTarget, cloneTemplateToWeek, continuationTitle, daysFromTemplate, defaultAssignments, emptyDays,
-  findFreeSlot, initialsFrom, makeSession, newId, reorderSessions, sessionsIn,
+  applyChanged, carryForwardTarget, continuationTitle, defaultAssignments, emptyDays,
+  findFreeSlot, initialsFrom, makeSession, newId, pickFields, reorderSessions, sessionsIn, weekFromTemplate,
 } from "@/lib/planner/logic";
 import type { DayKey, DayMeta, Group, Member, PersistOp, PlannerSnapshot, Role, Session, Teacher, Template, Viewer } from "@/lib/planner/types";
 
@@ -34,15 +34,38 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
   const timers = useRef(new Map<string, { timer: ReturnType<typeof setTimeout>; run: () => void }>());
   const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scheduleReloadRef = useRef<(delay?: number) => void>(() => {});
+  /** zählt jede Zustandsänderung – ein Neuladen, das eine lokale Änderung überholt hat, wird verworfen */
+  const version = useRef(0);
+  /** noch nicht gespeicherte Felder pro Lektion bzw. Wochentag */
+  const dirty = useRef(new Map<string, Set<string>>());
 
   const setSnapshot = useCallback((next: PlannerSnapshot) => {
+    version.current += 1;
     snapRef.current = next;
     setSnapshotState(next);
   }, []);
 
+  const markDirty = (key: string, fields: string[]) => {
+    const set = dirty.current.get(key) ?? new Set<string>();
+    fields.forEach((f) => set.add(f));
+    dirty.current.set(key, set);
+  };
+  const takeDirty = (key: string): string[] => {
+    const set = dirty.current.get(key);
+    dirty.current.delete(key);
+    return set ? [...set] : [];
+  };
+
   const reload = useCallback(async () => {
+    const started = version.current;
     try {
       const fresh = await backend.load();
+      // Während des Ladens lokal geändert oder noch ungespeichert? Dann später erneut laden,
+      // statt die lokale (optimistische) Änderung mit dem älteren Serverstand zu überschreiben.
+      if (snapRef.current && (version.current !== started || pending.current > 0 || timers.current.size > 0)) {
+        scheduleReloadRef.current(600);
+        return;
+      }
       setSnapshot(fresh);
       setLoadError(null);
     } catch (error) {
@@ -108,8 +131,12 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     backend.load()
       .then((data) => { if (!cancelled) { setSnapshot(data); setLoadError(null); } })
       .catch((error: unknown) => { if (!cancelled) setLoadError(error instanceof Error ? error.message : String(error)); });
+    const knowsId = (id: string) => {
+      const snap = snapRef.current;
+      return Boolean(snap && [snap.sessions, snap.groups, snap.teachers, snap.templates].some((list) => list.some((x) => x.id === id)));
+    };
     const unsubscribe = backend.subscribe(
-      { onRemoteChange: () => scheduleReload(), onPresence: (ids) => { if (!cancelled) setOnlineUserIds(ids); } },
+      { onRemoteChange: () => scheduleReload(), onPresence: (ids) => { if (!cancelled) setOnlineUserIds(ids); }, knowsId },
       { ...viewer, role: "lehrperson", teacherId: null } satisfies Viewer,
     );
     const onUnload = () => flush();
@@ -139,7 +166,7 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
   const ensureWeek = (snap: PlannerSnapshot, weekStart: string, ops: PersistOp[]): PlannerSnapshot => {
     if (snap.weeks[weekStart]) return snap;
     const days = emptyDays(snap.teachers);
-    ops.push({ type: "upsertWeek", weekStart, days });
+    ops.push({ type: "createWeek", weekStart, days });
     return { ...snap, weeks: { ...snap.weeks, [weekStart]: days } };
   };
 
@@ -147,11 +174,13 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     const snap = get();
     const next = { ...snap, sessions: snap.sessions.map((s) => (s.id === id ? { ...s, ...patch } : s)) };
     setSnapshot(next);
-    debounce(`session:${id}`, () => {
+    const key = `session:${id}`;
+    markDirty(key, Object.keys(patch));
+    debounce(key, () => {
+      const fields = takeDirty(key) as (keyof Session)[];
       const row = snapRef.current?.sessions.find((s) => s.id === id);
-      return row ? { type: "upsertSessions", rows: [row] } : null;
+      return row && fields.length ? { type: "patchSession", id, patch: pickFields(row, fields) } : null;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debounce, setSnapshot]);
 
   const addSession = useCallback((container: Container, day: DayKey, preferredSlot = 0): string | null => {
@@ -167,16 +196,15 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     ops.push({ type: "upsertSessions", rows: [fresh] });
     commit({ ...snap, sessions: [...snap.sessions, fresh] }, ops);
     return fresh.id;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commit]);
 
   const removeSession = useCallback((id: string) => {
     const snap = get();
     const t = timers.current.get(`session:${id}`);
     if (t) { clearTimeout(t.timer); timers.current.delete(`session:${id}`); }
+    dirty.current.delete(`session:${id}`);
     commit({ ...snap, sessions: snap.sessions.filter((s) => s.id !== id) }, [{ type: "deleteSessions", ids: [id] }]);
     toast.success("Block entfernt");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commit]);
 
   const moveSession = useCallback((id: string, day: DayKey, slot: number): boolean => {
@@ -190,45 +218,52 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
       if (!(session.day === day && session.slot === slot)) toast.error("An diesem Tag ist kein freier Platz mehr vorhanden");
       return false;
     }
-    commit({ ...snap, sessions: applyChanged(snap.sessions, changed) }, [{ type: "upsertSessions", rows: changed }]);
+    commit({ ...snap, sessions: applyChanged(snap.sessions, changed) }, [{ type: "moveSessions", rows: changed }]);
     toast.success(`Block auf ${dayLabel(day)}, ${SLOTS[Math.min(slot, SLOTS.length - 1)].time} Uhr verschoben`);
     return true;
   }, [commit, flush]);
 
-  const carryForward = useCallback((id: string, nextWeekStart: string): boolean => {
+  /**
+   * Überträgt einen Block als Fortsetzung. Existiert die Folgewoche noch nicht, wird sie zuerst
+   * aus der Vorlage `templateId` angelegt – sonst wäre sie danach leer und liesse sich nicht
+   * mehr aus der Vorlage erstellen.
+   */
+  const carryForward = useCallback((id: string, nextWeekStart: string, templateId?: string | null): boolean => {
     flush();
     let snap = get();
     const session = snap.sessions.find((s) => s.id === id);
     if (!session?.weekStart) return false;
-    const target = carryForwardTarget(snap.sessions, session, nextWeekStart);
-    if (!target) { toast.error("Weder diese noch nächste Woche hat einen freien Platz"); return false; }
     const ops: PersistOp[] = [];
-    snap = ensureWeek(snap, target.weekStart, ops);
+    let target = carryForwardTarget(snap.sessions, session, nextWeekStart);
+    if (target && !snap.weeks[target.weekStart]) {
+      const created = weekFromTemplate(snap.sessions, snap.templates, snap.teachers, templateId, target.weekStart);
+      snap = { ...snap, weeks: { ...snap.weeks, [target.weekStart]: created.days }, sessions: [...snap.sessions, ...created.sessions] };
+      ops.push({ type: "createWeek", weekStart: target.weekStart, days: created.days });
+      if (created.sessions.length) ops.push({ type: "upsertSessions", rows: created.sessions });
+      target = carryForwardTarget(snap.sessions, session, nextWeekStart);
+    }
+    if (!target) { toast.error("Weder diese noch nächste Woche hat einen freien Platz"); return false; }
     const marked: Session = { ...session, status: "carried" };
     const copy: Session = {
       ...session, id: newId(), weekStart: target.weekStart, day: target.day, slot: target.slot,
       title: continuationTitle(session.title), status: "planned", assignments: session.assignments.map((a) => ({ ...a })),
     };
-    ops.push({ type: "upsertSessions", rows: [marked, copy] });
+    ops.push({ type: "upsertSessions", rows: [copy] }, { type: "patchSession", id, patch: { status: "carried" } });
     commit({ ...snap, sessions: applyChanged(snap.sessions, [marked, copy]) }, ops);
     const when = target.weekStart === session.weekStart ? "" : " (nächste Woche)";
     toast.success(`Fortsetzung auf ${dayLabel(target.day)}, ${SLOTS[target.slot].time} Uhr${when} übertragen`);
     return true;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commit, flush]);
 
   const createWeekFromTemplate = useCallback((weekStart: string, templateId: string) => {
     const snap = get();
     if (snap.weeks[weekStart]) return;
-    const template = snap.templates.find((t) => t.id === templateId);
-    const days = daysFromTemplate(template?.days, snap.teachers);
-    const clones = cloneTemplateToWeek(sessionsIn(snap.sessions, { templateId }), weekStart);
+    const { days, sessions: clones } = weekFromTemplate(snap.sessions, snap.templates, snap.teachers, templateId, weekStart);
     commit(
       { ...snap, weeks: { ...snap.weeks, [weekStart]: days }, sessions: [...snap.sessions, ...clones] },
-      [{ type: "upsertWeek", weekStart, days }, { type: "upsertSessions", rows: clones }],
+      [{ type: "createWeek", weekStart, days }, { type: "upsertSessions", rows: clones }],
     );
     toast.success("Woche aus Vorlage angelegt");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commit]);
 
   const updateDay = useCallback((weekStart: string, day: DayKey, patch: Partial<DayMeta>) => {
@@ -237,11 +272,13 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     if (!week) return;
     const nextWeek = { ...week, [day]: { ...week[day], ...patch } };
     setSnapshot({ ...snap, weeks: { ...snap.weeks, [weekStart]: nextWeek } });
-    debounce(`week:${weekStart}`, () => {
-      const latest = snapRef.current?.weeks[weekStart];
-      return latest ? { type: "upsertWeek", weekStart, days: latest } : null;
+    const key = `week:${weekStart}:${day}`;
+    markDirty(key, Object.keys(patch));
+    debounce(key, () => {
+      const fields = takeDirty(key) as (keyof DayMeta)[];
+      const latest = snapRef.current?.weeks[weekStart]?.[day];
+      return latest && fields.length ? { type: "patchWeekDay", weekStart, day, patch: pickFields(latest, fields) } : null;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debounce, setSnapshot]);
 
   // ---------- Stammdaten (Koordination) ----------
@@ -253,20 +290,17 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
       const g = snapRef.current?.groups.find((x) => x.id === id);
       return g ? { type: "upsertGroups", rows: [g] } : null;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debounce, setSnapshot]);
 
   const addGroup = useCallback(() => {
     const snap = get();
     const group: Group = { id: newId(), name: "Neue Gruppe", short: "Neu", color: GROUP_PALETTE[snap.groups.length % GROUP_PALETTE.length], children: "", sortOrder: snap.groups.length };
     commit({ ...snap, groups: [...snap.groups, group] }, [{ type: "upsertGroups", rows: [group] }]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commit]);
 
   const removeGroup = useCallback((id: string) => {
     const snap = get();
     commit({ ...snap, groups: snap.groups.filter((g) => g.id !== id) }, [{ type: "deleteGroup", id }]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commit]);
 
   const updateTeacher = useCallback((id: string, patch: Partial<Teacher>) => {
@@ -284,7 +318,6 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
       const t = snapRef.current?.teachers.find((x) => x.id === id);
       return t ? { type: "upsertTeachers", rows: [t] } : null;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debounce, setSnapshot]);
 
   const addTeacher = useCallback((name = "Neue Lehrperson") => {
@@ -292,7 +325,6 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     const teacher: Teacher = { id: newId(), name, initials: initialsFrom(name), color: TEACHER_PALETTE[snap.teachers.length % TEACHER_PALETTE.length], active: true, sortOrder: snap.teachers.length };
     commit({ ...snap, teachers: [...snap.teachers, teacher] }, [{ type: "upsertTeachers", rows: [teacher] }]);
     return teacher.id;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commit]);
 
   const updateTemplate = useCallback((id: string, patch: Partial<Template>) => {
@@ -302,14 +334,12 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
       const t = snapRef.current?.templates.find((x) => x.id === id);
       return t ? { type: "upsertTemplates", rows: [t] } : null;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debounce, setSnapshot]);
 
   const renameTeam = useCallback((name: string) => {
     const snap = get();
     setSnapshot({ ...snap, team: { ...snap.team, name } });
     debounce("team", () => ({ type: "updateTeam", name: snapRef.current?.team.name ?? name }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debounce, setSnapshot]);
 
   const updateMember = useCallback((userId: string, patch: Partial<Pick<Member, "role" | "teacherId">>) => {
@@ -319,13 +349,11 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
       return;
     }
     commit({ ...snap, members: snap.members.map((m) => (m.userId === userId ? { ...m, ...patch } : m)) }, [{ type: "updateMember", userId, patch }]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commit]);
 
   const removeMember = useCallback((userId: string) => {
     const snap = get();
     commit({ ...snap, members: snap.members.filter((m) => m.userId !== userId) }, [{ type: "removeMember", userId }]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commit]);
 
   const regenerateJoinCode = useCallback(async () => {
@@ -337,7 +365,6 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Code konnte nicht erneuert werden");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backend, setSnapshot]);
 
   const resetDemo = useCallback(async () => {

@@ -71,9 +71,17 @@ export type PlannerSnapshot = {
 export type Viewer = { userId: string; displayName: string; role: Role; teacherId: string | null };
 
 export type PersistOp =
+  /** neue Lektionen (vollständige Zeilen) */
   | { type: "upsertSessions"; rows: Session[] }
+  /** nur geänderte Felder einer Lektion – überschreibt keine Änderungen anderer */
+  | { type: "patchSession"; id: string; patch: Partial<Session> }
+  /** nur Tag/Zeitfenster (verschieben); Inhalte bleiben unangetastet */
+  | { type: "moveSessions"; rows: Session[] }
   | { type: "deleteSessions"; ids: string[] }
-  | { type: "upsertWeek"; weekStart: string; days: WeekDays }
+  /** legt eine Woche an; besteht sie schon, bleibt sie unverändert */
+  | { type: "createWeek"; weekStart: string; days: WeekDays }
+  /** nur geänderte Felder eines Tages */
+  | { type: "patchWeekDay"; weekStart: string; day: DayKey; patch: Partial<DayMeta> }
   | { type: "upsertGroups"; rows: Group[] }
   | { type: "deleteGroup"; id: string }
   | { type: "upsertTeachers"; rows: Teacher[] }

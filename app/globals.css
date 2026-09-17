@@ -265,10 +265,18 @@ button, input, textarea { font: inherit; } button { cursor: pointer; }
   .move-section .move-row { grid-template-columns:1fr; }
   .admin-heading-actions { width:100%; }
   .admin-heading-actions>button { flex:1; }
+  .workspace-nav { flex-wrap:wrap; overflow-x:visible; }
+  .toolbar-actions>button[data-slot="button"] { min-width:0; height:auto; min-height:36px; white-space:normal; }
+  .week-switcher { flex-wrap:wrap; row-gap:6px; } .week-title { flex:1; min-width:0; }
+  .week-switcher>button:nth-child(4) { flex-basis:100%; }
+  .view-selector { width:100%; padding-bottom:10px; } .view-selector [data-slot="select-trigger"] { width:100%; }
 }
+/* breite Inhalte (Mini-Raster, Anwesenheitsmatrix) scrollen innerhalb der Karte statt die Seite zu verbreitern */
+.admin-grid>* { min-width:0; }
+.template-attendance { overflow-x:auto; }
 
 @media print {
-  .topbar,.workspace-nav,.planner-toolbar,.legend-row,.privacy-strip,.planning-warning,.active-view-note,
+  .topbar,.workspace-nav,.toolbar-actions,.week-switcher>button,.card-drag-handle,.legend-row,.privacy-strip,.planning-warning,.active-view-note,
   [data-slot="sheet-overlay"],[data-slot="sheet-content"],[data-slot="dialog-overlay"],[data-slot="dialog-content"],
   .help-button,[data-sonner-toaster] { display:none !important; }
   @page { size: A4 landscape; margin: 10mm; }
@@ -277,3 +285,11 @@ button, input, textarea { font: inherit; } button { cursor: pointer; }
   .week-grid { min-width:0; }
   .session-card,.day-main,.side-panel,.admin-card { box-shadow:none !important; }
 }
+
+/* Vorschau der Vorlage in einer noch leeren Woche (für alle Rollen, schreibgeschützt) */
+.template-preview { width:min(100%,760px); margin-top:26px; padding:0 16px 18px; text-align:left; }
+.template-preview .admin-subheading { max-width:none; margin:0 0 4px; }
+.mini-grid button:disabled { cursor:default; opacity:.55; }
+.empty-week { padding:28px 16px 0; }
+.empty-week>button { max-width:100%; height:auto; min-height:36px; white-space:normal; }
+@media print { .template-preview { display:none; } }

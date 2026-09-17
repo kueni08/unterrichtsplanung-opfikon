@@ -18,17 +18,19 @@ function mapAuthError(message: string): string {
   if (/email not confirmed/i.test(message)) return "Bitte bestätige zuerst deine E-Mail-Adresse.";
   if (/user already registered/i.test(message)) return "Diese E-Mail ist bereits registriert.";
   if (/password should be at least/i.test(message)) return "Das Passwort muss mindestens 8 Zeichen haben.";
-  if (/failed to fetch|networkerror/i.test(message)) return "Keine Verbindung. Bitte Internet prüfen.";
+  if (/failed to fetch|networkerror|load failed/i.test(message)) return "Keine Verbindung. Bitte Internet prüfen.";
+  if (/link is invalid|has expired|otp_expired/i.test(message)) return "Der Link ist ungültig oder abgelaufen. Bitte fordere einen neuen an.";
+  if (/rate limit|too many/i.test(message)) return "Zu viele Versuche. Bitte warte einige Minuten.";
   return message;
 }
 
-export function AuthScreen({ supabase, onDemoSelect }: { supabase: SupabaseClient | null; onDemoSelect: (role: Role) => void }) {
+export function AuthScreen({ supabase, onDemoSelect, initialError }: { supabase: SupabaseClient | null; onDemoSelect: (role: Role) => void; initialError?: string | null }) {
   const [tab, setTab] = useState("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError ? mapAuthError(initialError) : null);
   const [info, setInfo] = useState<string | null>(null);
   const [showDemo, setShowDemo] = useState(!supabase);
 
@@ -66,8 +68,10 @@ export function AuthScreen({ supabase, onDemoSelect }: { supabase: SupabaseClien
     setLoading(true);
     setError(null);
     setInfo(null);
-    await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: appUrl() });
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: appUrl() });
     setLoading(false);
+    // Nur Verbindungs-/Limitfehler melden – ob ein Konto existiert, bleibt verborgen
+    if (resetError && /fetch|network|load failed|rate limit|too many/i.test(resetError.message)) { setError(mapAuthError(resetError.message)); return; }
     setInfo("Falls ein Konto mit dieser E-Mail besteht, haben wir einen Link zum Zurücksetzen geschickt.");
   }
 

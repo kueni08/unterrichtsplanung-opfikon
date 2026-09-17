@@ -24,13 +24,16 @@ export function Onboarding({ supabase, displayName, onDone, onSignOut }: {
   const [joinerName, setJoinerName] = useState(displayName);
   const [busy, setBusy] = useState<"create" | "join" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** bereits angelegtes Team, falls das Befüllen fehlgeschlagen ist (erneuter Versuch legt kein zweites an) */
+  const [createdTeamId, setCreatedTeamId] = useState<string | null>(null);
 
   async function handleCreate(event: FormEvent) {
     event.preventDefault();
     setBusy("create");
     setError(null);
     try {
-      const teamId = await createTeam(supabase, teamName.trim() || "Unser Team", founderName.trim() || displayName);
+      const teamId = createdTeamId ?? await createTeam(supabase, teamName.trim() || "Unser Team", founderName.trim() || displayName);
+      setCreatedTeamId(teamId);
       await seedStarterContent(supabase, teamId, buildStarterContent);
       onDone(teamId);
     } catch (err) {
@@ -68,7 +71,7 @@ export function Onboarding({ supabase, displayName, onDone, onSignOut }: {
           <div className="card-heading"><span className="icon-box blue"><School /></span><div><h3>Neues Team gründen</h3><p>Du wirst automatisch Koordination</p></div></div>
           <div className="field-stack"><Label htmlFor="team-name">Teamname</Label><Input id="team-name" required placeholder="z. B. ADL Opfikon" value={teamName} onChange={(e) => setTeamName(e.target.value)} /></div>
           <div className="field-stack"><Label htmlFor="founder-name">Dein Vorname</Label><Input id="founder-name" required value={founderName} onChange={(e) => setFounderName(e.target.value)} /></div>
-          <Button type="submit" disabled={busy !== null}>{busy === "create" ? "Wird angelegt…" : "Team gründen"}</Button>
+          <Button type="submit" disabled={busy !== null}>{busy === "create" ? "Wird angelegt…" : createdTeamId ? "Einrichtung erneut versuchen" : "Team gründen"}</Button>
           <p className="onboarding-hint">Als Koordination pflegst du Vorlagen, Gruppen und das Team. Dein Team startet mit der Vorlage „Stundenplan Kastanie SJ 26/27“ (Klassen 3.–5., Lehrpersonen Dani, Andrea, Klara, Nici, Coni). Gib deinen Vornamen so ein, wie er im Stundenplan steht – dann wirst du automatisch mit deinem Kürzel verknüpft.</p>
         </form>
         <form className="onboarding-card" onSubmit={handleJoin}>

@@ -54,6 +54,15 @@ select pg_temp.expect_error($q$insert into public.sessions (team_id, week_start,
   select team_id, week_start, 'mo', 0, 'Doppelt' from public.weeks limit 1; set constraints all immediate$q$, 'Doppelbelegung');
 
 select pg_temp.expect_error($q$insert into public.weeks (team_id, week_start) select id, '2026-09-16' from public.teams limit 1$q$, 'Wochenstart muss Montag sein');
+select pg_temp.expect_error($q$insert into public.sessions (team_id, week_start, day, slot) select team_id, week_start, 'fr', 7 from public.weeks limit 1$q$, 'Zeitfenster ausserhalb des Rasters');
+
+-- Blöcke per Teil-Upsert (nur Position) tauschen, Inhalt bleibt erhalten
+insert into public.sessions (id, team_id, week_start, template_id, day, slot) values
+  ('20000000-0000-0000-0000-000000000001', :'team_id', '2026-09-14', null, 'mo', 0),
+  ('20000000-0000-0000-0000-000000000002', :'team_id', '2026-09-14', null, 'mo', 1)
+on conflict (id) do update set team_id = excluded.team_id, week_start = excluded.week_start,
+  template_id = excluded.template_id, day = excluded.day, slot = excluded.slot;
+select pg_temp.expect((select title from public.sessions where week_start is not null and slot = 0) = 'Deutsch', 'Tausch per Upsert behält Inhalte');
 select pg_temp.expect_error($q$insert into public.teams (name, join_code) values ('x', 'y')$q$, 'Team direkt anlegen');
 
 -- 2) Fremde Person sieht nichts
@@ -65,9 +74,16 @@ select pg_temp.expect((select count(*) from public.groups) = 0, 'Fremde sehen ke
 select pg_temp.expect_error(format($q$insert into public.sessions (team_id, week_start, day, slot) values (%L, '2026-09-14', 'di', 0)$q$, :'team_id'), 'Fremde schreiben Lektion');
 select pg_temp.expect_error($q$select public.join_team('FALSCH00', 'X')$q$, 'Falscher Beitrittscode');
 select pg_temp.expect_error(format($q$select public.regenerate_join_code(%L)$q$, :'team_id'), 'Fremde erneuern Code');
+select pg_temp.expect_error(format($q$select public.patch_week_day(%L, '2026-09-14', 'mo', '{"note": "x"}')$q$, :'team_id'), 'Fremde ändern Tagesangaben');
 update public.sessions set title = 'gehackt';
 reset role;
 select pg_temp.expect((select count(*) from public.sessions where title = 'gehackt') = 0, 'Fremde Updates wirkungslos');
+
+-- Fremde Person gründet ein eigenes Team
+select pg_temp.act_as('00000000-0000-0000-0000-00000000000c');
+select public.create_team('Fremdteam', 'Fremd') as team2 \gset
+reset role;
+select id as foreign_teacher from public.teachers where team_id = :'team2' \gset
 
 -- vorbereitetes Profil ohne Konto (wie aus dem Stundenplan)
 insert into public.teachers (team_id, name, initials) values (:'team_id', 'Kim', 'KI');
@@ -87,6 +103,13 @@ update public.sessions set title = 'Deutsch · Lesespuren' where id = '20000000-
 insert into public.sessions (team_id, week_start, day, slot, title) values (:'team_id', '2026-09-14', 'di', 0, 'Sport');
 update public.weeks set days = '{"mo": {"note": "Besuch"}}' where team_id = :'team_id';
 select pg_temp.expect((select count(*) from public.sessions where week_start is not null) = 3, 'Lehrperson plant Wochen');
+select public.patch_week_day(:'team_id', '2026-09-14', 'di', '{"note": "Turnhalle"}');
+select public.patch_week_day(:'team_id', '2026-09-14', 'mo', '{"attendance": ["t1"]}');
+select pg_temp.expect((select days #>> '{mo,note}' = 'Besuch' and days #> '{mo,attendance}' = '["t1"]' and days #>> '{di,note}' = 'Turnhalle'
+  from public.weeks where team_id = :'team_id'), 'Tagesangaben werden feldweise zusammengeführt');
+select pg_temp.expect_error(format($q$select public.patch_week_day(%L, '2026-09-14', 'sa', '{}')$q$, :'team_id'), 'Ungültiger Tag');
+select pg_temp.expect_error(format($q$select public.patch_week_day(%L, '2026-09-14', 'mo', '{"evil": 1}')$q$, :'team_id'), 'Unbekanntes Tagesfeld');
+select pg_temp.expect_error(format($q$select public.patch_week_day(%L, '2026-09-21', 'mo', '{}')$q$, :'team_id'), 'Tagesangaben für fehlende Woche');
 
 -- darf keine Stammdaten/Vorlagen/Rollen ändern
 update public.groups set name = 'x';
@@ -98,7 +121,7 @@ reset role;
 select pg_temp.expect((select count(*) from public.groups where name = 'x') = 0, 'Lehrperson ändert keine Gruppen');
 select pg_temp.expect((select count(*) from public.templates where name = 'x') = 0, 'Lehrperson ändert keine Vorlagen');
 select pg_temp.expect((select count(*) from public.sessions where title = 'x') = 0, 'Lehrperson ändert keine Vorlagenbausteine');
-select pg_temp.expect((select count(*) from public.team_members where role = 'koordination') = 1, 'Lehrperson macht sich nicht zur Koordination');
+select pg_temp.expect((select count(*) from public.team_members where team_id = :'team_id' and role = 'koordination') = 1, 'Lehrperson macht sich nicht zur Koordination');
 select pg_temp.expect((select count(*) from public.teams where name = 'x') = 0, 'Lehrperson ändert Teamnamen nicht');
 select pg_temp.act_as('00000000-0000-0000-0000-00000000000b');
 select pg_temp.expect_error(format($q$insert into public.sessions (team_id, template_id, day, slot) values (%L, '10000000-0000-0000-0000-000000000001', 'di', 3)$q$, :'team_id'), 'Lehrperson legt Vorlagenbaustein an');
@@ -108,9 +131,14 @@ select pg_temp.expect_error(format($q$insert into public.groups (team_id, name) 
 reset role;
 select pg_temp.act_as('00000000-0000-0000-0000-00000000000a');
 select pg_temp.expect_error($q$update public.team_members set role = 'lehrperson' where user_id = '00000000-0000-0000-0000-00000000000a'$q$, 'Letzte Koordination herabstufen');
+select pg_temp.expect_error($q$update public.teams set join_code = 'AAAAAAAA'$q$, 'Beitrittscode direkt setzen');
+select pg_temp.expect_error($q$update public.team_members set user_id = '00000000-0000-0000-0000-00000000000c' where user_id = '00000000-0000-0000-0000-00000000000b'$q$, 'Mitglied auf andere Person umschreiben');
+select pg_temp.expect_error(format($q$update public.team_members set teacher_id = %L where user_id = '00000000-0000-0000-0000-00000000000b'$q$, :'foreign_teacher'), 'Verknüpfung mit Lehrperson eines anderen Teams');
+update public.teams set name = 'ADL Opfikon 2' where id = :'team_id';
+select pg_temp.expect((select name from public.teams where id = :'team_id') = 'ADL Opfikon 2', 'Koordination benennt Team um');
 update public.team_members set role = 'koordination' where user_id = '00000000-0000-0000-0000-00000000000b';
 update public.team_members set role = 'lehrperson' where user_id = '00000000-0000-0000-0000-00000000000a';
-select pg_temp.expect((select count(*) from public.team_members where role = 'koordination') = 1, 'Rollenwechsel mit Nachfolge klappt');
+select pg_temp.expect((select count(*) from public.team_members where team_id = :'team_id' and role = 'koordination') = 1, 'Rollenwechsel mit Nachfolge klappt');
 
 -- 5) Team löschen (als DB-Owner) räumt alles ab
 reset role;

@@ -69,8 +69,9 @@ function DaySidebar({ day, meta, teachers, onChange, disabled }: {
   function updateMeeting(index: 0 | 1, patch: Partial<Meeting>) {
     const rows: Meeting[] = [meta.meetings[0] ?? { time: "", title: "" }, meta.meetings[1] ?? { time: "", title: "" }];
     rows[index] = { ...rows[index], ...patch };
-    const second = rows[1];
-    onChange({ meetings: second.time || second.title ? rows : [rows[0]] });
+    const filled = (m: Meeting) => Boolean(m.time || m.title);
+    // Position bleibt erhalten (Termin 2 rutscht beim Tippen nicht nach oben); leere Termine am Ende entfallen
+    onChange({ meetings: filled(rows[1]) ? rows : filled(rows[0]) ? [rows[0]] : [] });
   }
 
   return (

@@ -1,12 +1,19 @@
 import type { PersistOp, PlannerSnapshot, Viewer } from "./types.ts";
 
+export type RealtimeHandlers = {
+  onRemoteChange: () => void;
+  onPresence: (userIds: string[]) => void;
+  /** Kennt der aktuelle Stand diese ID? (Löschereignisse kommen ungefiltert an.) */
+  knowsId?: (id: string) => boolean;
+};
+
 export interface PlannerBackend {
   readonly kind: "local" | "supabase";
   load(): Promise<PlannerSnapshot>;
   /** Schreibt eine Änderung. `latest` ist der aktuelle Gesamtstand (für lokale Speicherung). */
   persist(op: PersistOp, latest: PlannerSnapshot): Promise<void>;
   /** Meldet Änderungen anderer Personen und wer gerade online ist. */
-  subscribe(handlers: { onRemoteChange: () => void; onPresence: (userIds: string[]) => void }, viewer: Viewer): () => void;
+  subscribe(handlers: RealtimeHandlers, viewer: Viewer): () => void;
   regenerateJoinCode(): Promise<string>;
   /** Nur Demo: Beispieldaten zurücksetzen. */
   reset?(): Promise<PlannerSnapshot>;

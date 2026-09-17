@@ -17,8 +17,18 @@ import { getSupabase } from "@/lib/supabase/client";
 
 const TEAM_STORAGE_KEY = "wochenatelier-team";
 
+/** Fehlermeldung aus einem abgelaufenen/ungültigen Bestätigungs- oder Passwort-Link (#error_description=…). */
+function readAuthErrorFromUrl(): string | null {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const search = new URLSearchParams(window.location.search);
+  return params.get("error_description") ?? search.get("error_description");
+}
+
 export default function Page() {
   const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
+  // vor dem Erzeugen des Clients lesen, da dieser die URL bereinigt
+  const [urlAuthError] = useState<string | null>(readAuthErrorFromUrl);
   const [supabase] = useState<SupabaseClient | null>(() => getSupabase());
 
   const [demoRole, setDemoRole] = useState<Role | null>(null);
@@ -44,6 +54,12 @@ export default function Page() {
     const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
       if (!active) return;
       if (event === "PASSWORD_RECOVERY") setPasswordRecovery(true);
+      if (!session) {
+        // abgemeldet (auch bei abgelaufener Sitzung): keine Teamliste der vorherigen Person behalten
+        setMemberships(null);
+        setMembershipsError(null);
+        setSelectedTeamId(null);
+      }
       setAuthUser(session?.user ?? null);
     });
     return () => {
@@ -52,11 +68,18 @@ export default function Page() {
     };
   }, [supabase]);
 
-  // Teams der angemeldeten Person laden, sobald die Sitzung bekannt ist.
   useEffect(() => {
-    if (!supabase || !authUser) return;
+    if (!urlAuthError) return;
+    try { window.history.replaceState(null, "", window.location.pathname); } catch { /* ignorieren */ }
+  }, [urlAuthError]);
+
+  // Teams der angemeldeten Person laden, sobald die Sitzung bekannt ist.
+  // Abhängig von der ID (nicht vom User-Objekt), damit Token-Erneuerungen nicht neu laden.
+  const authUserId = authUser?.id ?? null;
+  useEffect(() => {
+    if (!supabase || !authUserId) return;
     let active = true;
-    listMemberships(supabase, authUser.id)
+    listMemberships(supabase, authUserId)
       .then((list) => {
         if (!active) return;
         setMemberships(list);
@@ -72,7 +95,7 @@ export default function Page() {
         if (active) setMembershipsError(error instanceof Error ? error.message : String(error));
       });
     return () => { active = false; };
-  }, [supabase, authUser]);
+  }, [supabase, authUserId]);
 
   async function handleOnboardingDone(teamId: string) {
     if (!supabase || !authUser) return;
@@ -113,7 +136,7 @@ export default function Page() {
   }
 
   if (!supabase) {
-    return <AuthScreen supabase={null} onDemoSelect={setDemoRole} />;
+    return <AuthScreen supabase={null} onDemoSelect={setDemoRole} initialError={urlAuthError} />;
   }
 
   if (passwordRecovery) {
@@ -123,7 +146,7 @@ export default function Page() {
   if (authUser === undefined) return <Splash />;
 
   if (authUser === null) {
-    return <AuthScreen supabase={supabase} onDemoSelect={setDemoRole} />;
+    return <AuthScreen supabase={supabase} onDemoSelect={setDemoRole} initialError={urlAuthError} />;
   }
 
   const displayName = (authUser.user_metadata?.display_name as string | undefined) || authUser.email || "Ich";

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { PlannerBackend } from "./backend.ts";
-import { normalizeDays } from "./logic.ts";
+import { makeSession, normalizeDays } from "./logic.ts";
 import type { Assignment, DayKey, Group, Member, PersistOp, PlannerSnapshot, Role, Session, SessionStatus, Teacher, Template, WeekDays } from "./types.ts";
 
 type Row = Record<string, unknown>;
@@ -40,6 +40,24 @@ export function sessionToRow(s: Session, teamId: string): Row {
   };
 }
 
+const PATCHABLE: Partial<Record<keyof Session, string>> = {
+  title: "title", focus: "focus", room: "room", notes: "notes", children: "children",
+  wholeClass: "whole_class", status: "status", assignments: "assignments", day: "day", slot: "slot",
+};
+
+/** Nur die geänderten Felder als Spalten (mit denselben Längenbegrenzungen wie beim Einfügen). */
+export function sessionPatchToRow(patch: Partial<Session>): Row {
+  const full = sessionToRow({ ...makeSession({ day: "mo", slot: 0 }), ...patch }, "");
+  const row: Row = {};
+  for (const [key, column] of Object.entries(PATCHABLE)) if (key in patch) row[column as string] = full[column as string];
+  return row;
+}
+
+/** Nur die Position einer Lektion (für Upserts beim Verschieben). */
+export function sessionPositionRow(s: Session, teamId: string): Row {
+  return { id: s.id, team_id: teamId, week_start: s.weekStart, template_id: s.templateId, day: s.day, slot: s.slot };
+}
+
 function check<T extends { error: { message: string } | null }>(result: T): T {
   if (result.error) throw new Error(translateError(result.error.message));
   return result;
@@ -49,7 +67,10 @@ export function translateError(message: string): string {
   if (/row-level security|permission denied/i.test(message)) return "Dafür fehlen die Berechtigungen (nur Koordination).";
   if (/exclusion constraint|session_week_slot_unique|session_template_slot_unique/i.test(message)) return "Dieser Platz wurde gerade von jemand anderem belegt. Der Plan wurde aktualisiert.";
   if (/mindestens eine Koordination/i.test(message)) return "Das Team braucht mindestens eine Koordination.";
-  if (/Failed to fetch|NetworkError/i.test(message)) return "Keine Verbindung. Bitte Internet prüfen.";
+  if (/Failed to fetch|NetworkError|Load failed/i.test(message)) return "Keine Verbindung. Bitte Internet prüfen.";
+  if (/Woche nicht gefunden/i.test(message)) return "Diese Woche wurde inzwischen entfernt. Der Plan wurde aktualisiert.";
+  if (/JSON object requested|0 rows/i.test(message)) return "Kein Zugriff auf dieses Team (mehr). Bitte neu anmelden oder die Koordination fragen.";
+  if (/Could not find the function/i.test(message)) return "Die Datenbank ist nicht auf dem aktuellen Stand (Migration fehlt).";
   return message;
 }
 
@@ -70,12 +91,18 @@ export async function createTeam(client: SupabaseClient, name: string, displayNa
 /**
  * Legt den Startinhalt (Stundenplan Kastanie) für ein frisch gegründetes Team an.
  * Die Gründerin/der Gründer wird per Vorname einer Stundenplan-Lehrperson zugeordnet.
+ * Wiederholbar: Ist der Inhalt schon vollständig da, passiert nichts; Reste eines
+ * abgebrochenen Versuchs (Gruppen/Vorlagen ohne Lektionen) werden ersetzt.
  */
 export async function seedStarterContent(
   client: SupabaseClient,
   teamId: string,
   build: (existing: Teacher[]) => { teachers: Teacher[]; groups: Group[]; templates: Template[]; sessions: Session[] },
 ): Promise<void> {
+  const { count } = check(await client.from("sessions").select("id", { count: "exact", head: true }).eq("team_id", teamId).not("template_id", "is", null));
+  if ((count ?? 0) > 0) return;
+  check(await client.from("templates").delete().eq("team_id", teamId));
+  check(await client.from("groups").delete().eq("team_id", teamId));
   const { data: existingRows } = check(await client.from("teachers").select("*").eq("team_id", teamId));
   const existing = (existingRows ?? []).map(toTeacher);
   const content = build(existing);
@@ -133,11 +160,26 @@ export function createSupabaseBackend(client: SupabaseClient, teamId: string): P
         case "upsertSessions":
           if (op.rows.length) check(await client.from("sessions").upsert(op.rows.map((s) => sessionToRow(s, teamId))));
           return;
+        case "patchSession": {
+          const row = sessionPatchToRow(op.patch);
+          if (Object.keys(row).length) check(await client.from("sessions").update(row).eq("id", op.id));
+          return;
+        }
+        case "moveSessions":
+          // Teil-Upsert: PostgREST aktualisiert nur die mitgeschickten Spalten, in einer Transaktion
+          if (op.rows.length) check(await client.from("sessions").upsert(op.rows.map((s) => sessionPositionRow(s, teamId))));
+          return;
         case "deleteSessions":
           if (op.ids.length) check(await client.from("sessions").delete().in("id", op.ids));
           return;
-        case "upsertWeek":
-          check(await client.from("weeks").upsert({ team_id: teamId, week_start: op.weekStart, days: op.days }, { onConflict: "team_id,week_start" }));
+        case "createWeek":
+          check(await client.from("weeks").upsert(
+            { team_id: teamId, week_start: op.weekStart, days: op.days },
+            { onConflict: "team_id,week_start", ignoreDuplicates: true },
+          ));
+          return;
+        case "patchWeekDay":
+          check(await client.rpc("patch_week_day", { p_team: teamId, p_week: op.weekStart, p_day: op.day, p_patch: op.patch }));
           return;
         case "upsertGroups":
           check(await client.from("groups").upsert(op.rows.map((g) => ({
@@ -172,11 +214,19 @@ export function createSupabaseBackend(client: SupabaseClient, teamId: string): P
       }
     },
 
-    subscribe({ onRemoteChange, onPresence }, viewer) {
+    subscribe({ onRemoteChange, onPresence, knowsId }, viewer) {
       const channel = client.channel(`wochenatelier:${teamId}`, { config: { presence: { key: viewer.userId } } });
       for (const table of TABLES) {
         const filter = table === "teams" ? `id=eq.${teamId}` : `team_id=eq.${teamId}`;
-        channel.on("postgres_changes", { event: "*", schema: "public", table, filter }, () => onRemoteChange());
+        channel.on("postgres_changes", { event: "INSERT", schema: "public", table, filter }, () => onRemoteChange());
+        channel.on("postgres_changes", { event: "UPDATE", schema: "public", table, filter }, () => onRemoteChange());
+        if (table === "teams") continue;
+        // Löschereignisse lassen sich in Supabase Realtime nicht filtern und enthalten nur den
+        // Primärschlüssel – daher ungefiltert abonnieren und die Relevanz hier prüfen.
+        channel.on("postgres_changes", { event: "DELETE", schema: "public", table }, (payload) => {
+          const old = (payload.old ?? {}) as Row;
+          if (old.team_id === teamId || (typeof old.id === "string" && knowsId?.(old.id))) onRemoteChange();
+        });
       }
       channel.on("presence", { event: "sync" }, () => onPresence(Object.keys(channel.presenceState())));
       channel.subscribe((status) => {

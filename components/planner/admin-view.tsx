@@ -50,8 +50,11 @@ export function AdminView({ api, snapshot, mode, selectedTemplateId, onSelectTem
     const a = document.createElement("a");
     a.href = url;
     a.download = `wochenatelier-backup-${isoDate(new Date())}.json`;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    a.remove();
+    // erst nach dem Start des Downloads freigeben (Safari/Firefox brechen sonst ab)
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   function handleRemoveGroup(id: string) {
@@ -246,7 +249,11 @@ function TemplateAttendance({ template, teachers, onChange }: {
   );
 }
 
-function MiniTemplate({ sessions, groups, teachers, onOpen }: { sessions: Session[]; groups: Group[]; teachers: Teacher[]; onOpen: (day: DayKey, slot: number) => void }) {
+export function MiniTemplate({ sessions, groups, teachers, onOpen, readOnly = false }: {
+  sessions: Session[]; groups: Group[]; teachers: Teacher[]; onOpen: (day: DayKey, slot: number) => void;
+  /** leere Felder sind nicht anklickbar (Vorschau) */
+  readOnly?: boolean;
+}) {
   return (
     <div className="mini-scroll">
       <div className="mini-grid">
@@ -263,10 +270,12 @@ function MiniTemplate({ sessions, groups, teachers, onOpen }: { sessions: Sessio
                   type="button"
                   key={day.id}
                   onClick={() => onOpen(day.id, index)}
+                  disabled={readOnly && !item}
+                  aria-label={`${day.label}, ${slot.label}${item ? `: ${item.title}` : readOnly ? ": frei" : ": Block anlegen"}`}
                   style={item ? { borderLeftColor: accent, background: tint(accent, "16") } : undefined}
-                  title={item ? `${item.title} · ${teachers.find((t) => t.id === item.assignments[0]?.teacherId)?.initials ?? ""}` : "Block anlegen"}
+                  title={item ? `${item.title} · ${teachers.find((t) => t.id === item.assignments[0]?.teacherId)?.initials ?? ""}` : readOnly ? "frei" : "Block anlegen"}
                 >
-                  {item ? item.title : <Plus size={13} />}
+                  {item ? item.title : readOnly ? null : <Plus size={13} />}
                 </button>
               );
             })}
