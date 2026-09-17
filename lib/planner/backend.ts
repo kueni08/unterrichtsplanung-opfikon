@@ -28,7 +28,7 @@ export function createLocalBackend(factory: () => PlannerSnapshot): PlannerBacke
       if (!raw) return null;
       const parsed = JSON.parse(raw) as PlannerSnapshot;
       if (!parsed?.team || !Array.isArray(parsed.sessions)) return null;
-      return { ...parsed, children: Array.isArray(parsed.children) ? parsed.children : [] };
+      return { ...parsed, children: Array.isArray(parsed.children) ? parsed.children : [], childNotes: Array.isArray(parsed.childNotes) ? parsed.childNotes : [] };
     } catch {
       return null;
     }

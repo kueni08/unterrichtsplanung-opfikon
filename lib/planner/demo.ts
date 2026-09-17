@@ -1,6 +1,7 @@
 import { TEACHER_PALETTE } from "./constants.ts";
 import { cloneTemplateToWeek, daysFromTemplate, deriveTitle, makeSession, newId, setParticipants, uniqueInitials } from "./logic.ts";
-import type { Assignment, DayKey, Group, PlannerSnapshot, Session, Teacher, Template, WeekDays } from "./types.ts";
+import { addDays, isoDate, parseIsoDate } from "./dates.ts";
+import type { Assignment, ChildNote, DayKey, Group, PlannerSnapshot, Session, Teacher, Template, WeekDays } from "./types.ts";
 
 /**
  * Standardinhalt gemäss „Vorlage Stundenplan Kastanie SJ26/27“.
@@ -221,6 +222,19 @@ export function buildDemoSnapshot(weekStart: string): PlannerSnapshot {
     meeting("do", 8, "Elterngespräch H03", "Standortgespräch", "Zimmer 12", ["Andrea"]),
     meeting("do", 9, "Teamplanung", "Wochenrückblick", "Lehrerzimmer", []),
   );
+  const children = DEMO_CHILDREN.flatMap((names, g) => Object.entries(names).map(([short, name], i) => {
+    const parts = name.split(" ");
+    return { id: newId(), firstName: parts[0], lastName: parts.slice(1).join(" "), short, groupId: content.groups[g].id, active: true, sortOrder: g * 20 + i };
+  }));
+  const kid = (short: string) => children.find((c) => c.short === short)?.id ?? "";
+  const day = (offset: number) => isoDate(addDays(parseIsoDate(weekStart), offset));
+  const childNotes: ChildNote[] = [
+    { id: newId(), childId: kid("NL"), kind: "plus", note: "Hat Seamus beim Zaubertrank geholfen, ohne dass jemand fragen musste.", notedOn: day(1), authorId: DEMO_USERS.koordination.userId },
+    { id: newId(), childId: kid("RW"), kind: "minus", note: "Hausaufgaben zum dritten Mal vergessen – Eltern informiert.", notedOn: day(1), authorId: DEMO_USERS.lehrperson.userId },
+    { id: newId(), childId: kid("RW"), kind: "info", note: "Wirkt müde; laut eigener Aussage bis spät Quidditch-Training.", notedOn: day(2), authorId: DEMO_USERS.lehrperson.userId },
+    { id: newId(), childId: kid("HP"), kind: "minus", note: "Streit in der Pause mit Draco, beide ermahnt.", notedOn: day(-4), authorId: DEMO_USERS.koordination.userId },
+    { id: newId(), childId: kid("LL"), kind: "plus", note: "Präsentation über Schrumpfhörnige Schnarchkackler – kreativ und gut vorbereitet.", notedOn: day(3), authorId: DEMO_USERS.koordination.userId },
+  ];
   return {
     team: { id: "demo", name: "Hogwarts · Demo-Schule", joinCode: "EULE2026" },
     members: [
@@ -229,10 +243,8 @@ export function buildDemoSnapshot(weekStart: string): PlannerSnapshot {
     ],
     teachers,
     groups: content.groups,
-    children: DEMO_CHILDREN.flatMap((names, g) => Object.entries(names).map(([short, name], i) => {
-      const parts = name.split(" ");
-      return { id: newId(), firstName: parts[0], lastName: parts.slice(1).join(" "), short, groupId: content.groups[g].id, active: true, sortOrder: g * 20 + i };
-    })),
+    children,
+    childNotes,
     templates: content.templates,
     sessions: [...content.sessions, ...week],
     weeks: { [weekStart]: days },
