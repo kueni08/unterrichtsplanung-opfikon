@@ -1,4 +1,7 @@
-// Intentionally empty by default.
-// Add Drizzle tables here when the site actually needs a database.
-// See examples/d1/db/schema.ts for an opt-in example.
-export {};
+import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+export const users = sqliteTable("users", { id: text("id").primaryKey(), username: text("username").notNull().unique(), name: text("name").notNull(), passwordHash: text("password_hash").notNull(), role: text("role").notNull(), teacherId: text("teacher_id").notNull(), active: integer("active").notNull().default(1) });
+export const authSessions = sqliteTable("auth_sessions", { hash: text("hash").primaryKey(), userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }), expires: integer("expires").notNull() }, table => [index("idx_auth_sessions_user").on(table.userId)]);
+export const plans = sqliteTable("plans", { id: integer("id").primaryKey(), revision: integer("revision").notNull(), data: text("data").notNull(), updatedAt: text("updated_at").notNull(), updatedBy: text("updated_by").notNull(), operationId: text("operation_id").notNull() });
+export const changes = sqliteTable("changes", { operationId: text("operation_id").primaryKey(), revision: integer("revision").notNull(), userId: text("user_id").notNull(), urgent: integer("urgent").notNull(), createdAt: text("created_at").notNull() }, table => [index("idx_changes_revision").on(table.revision)]);
+export const subscriptions = sqliteTable("push_subscriptions", { endpoint: text("endpoint").primaryKey(), userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }), data: text("data").notNull() }, table => [index("idx_push_user").on(table.userId)]);
+export const attempts = sqliteTable("login_attempts", { key: text("key").primaryKey(), count: integer("count").notNull(), expires: integer("expires").notNull() });

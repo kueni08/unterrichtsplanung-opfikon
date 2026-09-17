@@ -2,6 +2,17 @@
 @import "tw-animate-css";
 @import "../vendor/shadcn-tailwind-4.13.0.css";
 
+.sync-toolbar,.pwa-panel,.account-settings { margin: 16px 24px; padding: 16px; border: 1px solid #dbe5ed; border-radius: 14px; background: white; font-size: 13px; }
+.sync-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.conflict-alert { display: grid; gap: 5px; flex-basis: 100%; padding: 10px; border-radius: 10px; background: #fff3e7; color: #8a4f1c; }
+.sync-toolbar>p,.sync-toolbar>[role="alert"] { flex-basis: 100%; }
+.sync-toolbar>label { display: flex; align-items: center; gap: 8px; }
+.install-banner { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 12px; }
+.install-banner>div { flex: 1; min-width: 220px; }.install-banner p { margin: 4px 0; color: #637589; }
+.account-settings summary,.pwa-panel summary { cursor: pointer; font-weight: 700; }
+.account-settings form { display: grid; gap: 10px; max-width: 480px; margin-top: 20px; }
+.account-settings select { display: block; width: 100%; border: 1px solid #dbe5ed; padding: 8px; border-radius: 8px; }
+
 :root {
   --background: #f4f7fb; --foreground: #17324d; --card: #fff; --card-foreground: #17324d;
   --popover: #fff; --popover-foreground: #17324d; --primary: #0b4a7e; --primary-foreground: #fff;

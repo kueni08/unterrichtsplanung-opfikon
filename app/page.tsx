@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState, type DragEvent } from "react";
+import { useCallback, useMemo, useState, type DragEvent } from "react";
+import { useTeamSync } from "../client/sync";
+import { AccountSettings, logout } from "../client/account";
+import { analyzeChildConflicts, type TeamUser, type PlannerData } from "../shared/planner";
 import {
   CalendarDays, Check, ChevronLeft, ChevronRight, CircleAlert, Clock3,
   CopyPlus, GripVertical, LayoutGrid, MapPin, MessageSquareText, Plus, RotateCcw,
@@ -25,7 +28,7 @@ type Teacher = { id: string; name: string; initials: string; color: string; acti
 type Assignment = { groupId: string; teacherId: string };
 type Session = {
   id: string; day: DayKey; slot: number; title: string; focus: string; room: string;
-  notes: string; children: string; wholeClass?: boolean; assignments: Assignment[]; status: SessionStatus;
+  notes: string; children: string; childOverrides?: string[]; wholeClass?: boolean; assignments: Assignment[]; status: SessionStatus;
 };
 type Meeting = { time: string; title: string };
 type DayMeta = { attendance: string[]; note: string; meetings: Meeting[] };
@@ -97,7 +100,8 @@ function isoDate(date: Date) { return `${date.getFullYear()}-${String(date.getMo
 function dateAt(offset: number, day = 0) { const date = new Date(baseMonday); date.setDate(date.getDate() + offset * 7 + day); return date; }
 function emptyDays(teachers = initialTeachers): Record<DayKey, DayMeta> {
   const present = teachers.filter((t) => t.active).slice(0, 3).map((t) => t.id);
-  return Object.fromEntries(days.map((day) => [day.id, { attendance: present, note: "", meetings: [] }])) as Record<DayKey, DayMeta>;
+  const createDay = (): DayMeta => ({ attendance: [...present], note: "", meetings: [] });
+  return { mo: createDay(), di: createDay(), mi: createDay(), do: createDay(), fr: createDay() };
 }
 function cloneSessions(source: Session[], prefix: string) {
   return source.map((item, index) => ({ ...item, id: `${prefix}-${index}-${Date.now()}`, assignments: item.assignments.map((a) => ({ ...a })) }));
@@ -162,7 +166,7 @@ function WeekLabel({ offset }: { offset: number }) {
   return <>{fmt.format(start)} – {fmt.format(end)} {end.getFullYear()}</>;
 }
 
-export default function Home() {
+export default function Home({ user }: { user: TeamUser }) {
   const [groups, setGroups] = useState<Group[]>(initialGroups);
   const [teachers, setTeachers] = useState<Teacher[]>(initialTeachers);
   const [templates, setTemplates] = useState<Record<string, Session[]>>({ regel: ruleTemplate, projekt: projectTemplate });
@@ -170,11 +174,12 @@ export default function Home() {
   const [weeks, setWeeks] = useState<Record<string, Week>>({ [isoDate(baseMonday)]: sampleWeek });
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState<DayKey>("mi");
-  const [viewer, setViewer] = useState("all");
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [loginRole, setLoginRole] = useState("nici");
+  const [viewer, setViewer] = useState(user.role === "admin" ? "all" : user.teacherId);
   const [editTarget, setEditTarget] = useState<EditTarget>(null);
-  const [ready, setReady] = useState(false);
+  const data = useMemo(() => ({ groups, teachers, templates, weeks }), [groups, teachers, templates, weeks]);
+  const applyData = useCallback((value: PlannerData) => { setGroups(value.groups); setTeachers(value.teachers); setTemplates(value.templates); setWeeks(value.weeks); }, []);
+  const sync = useTeamSync(user, data, applyData);
+  const childConflicts = useMemo(() => analyzeChildConflicts(data), [data]);
   const weekKey = isoDate(dateAt(weekOffset));
   const currentWeek = weeks[weekKey];
   const currentSessions = currentWeek?.sessions ?? [];
@@ -191,13 +196,6 @@ export default function Home() {
     return [...new Set(warnings)];
   }, [currentSessions, groups.length, teachers]);
 
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem("adl-unterrichtsplanung-v2");
-      if (stored) { const parsed = JSON.parse(stored); if (parsed.groups && parsed.teachers && parsed.templates && parsed.weeks) { setGroups(parsed.groups); setTeachers(parsed.teachers); setTemplates(parsed.templates); setWeeks(parsed.weeks); } }
-    } catch { /* invalid local demo state starts fresh */ } finally { setReady(true); }
-  }, []);
-  useEffect(() => { if (ready) localStorage.setItem("adl-unterrichtsplanung-v2", JSON.stringify({ groups, teachers, templates, weeks })); }, [groups, teachers, templates, weeks, ready]);
 
   const activeSession = useMemo(() => {
     if (!editTarget) return null;
@@ -259,12 +257,13 @@ export default function Home() {
     toast.success(`Block auf ${days.find((day) => day.id === targetDay)?.label}, ${slots[targetSlot].time} Uhr verschoben`);
   }
   function resetDemo() {
-    localStorage.removeItem("adl-unterrichtsplanung-v2"); setGroups(initialGroups); setTeachers(initialTeachers);
+    if (!window.confirm("Den gemeinsamen Plan durch Beispieldaten ersetzen? Vorher bei Bedarf einen Entwurf exportieren.")) return;
+    setGroups(initialGroups); setTeachers(initialTeachers);
     setTemplates({ regel: ruleTemplate, projekt: projectTemplate }); setWeeks({ [isoDate(baseMonday)]: sampleWeek }); setWeekOffset(0);
     toast.success("Beispieldaten wiederhergestellt");
   }
 
-  if (!loggedIn) return <LoginScreen role={loginRole} onRoleChange={setLoginRole} onLogin={() => { setLoggedIn(true); setViewer(loginRole === "koordination" ? "all" : "t1"); }} />;
+  if (!sync.ready) return <main className="login-shell"><section className="login-card"><h1>Wochenatelier</h1><p role="status">{sync.status}</p><Button onClick={() => location.reload()}>Erneut laden</Button></section></main>;
 
   return (
     <main className="app-shell">
@@ -275,7 +274,7 @@ export default function Home() {
           <div><p className="eyebrow">Teamplanung</p><h1>Wochenatelier</h1></div>
         </div>
           <div className="header-meta">
-          <button className="logout-button" onClick={() => setLoggedIn(false)}>Abmelden</button>
+          <span>{user.name}</span><button className="logout-button" onClick={async () => { if (sync.pending) { toast.error("Bitte zuerst speichern oder den Entwurf exportieren."); return; } try { await logout(); } catch (e) { toast.error(String(e)); } }}>Abmelden</button>
           <span className="draft-badge"><Sparkles size={14} /> Entwurf</span>
           <div className="avatar-stack" aria-label="Lehrpersonen im Team">
             {teachers.filter((t) => t.active).slice(0, 4).map((teacher) => <span key={teacher.id} style={{ background: teacher.color }} title={teacher.name}>{teacher.initials}</span>)}
@@ -288,11 +287,12 @@ export default function Home() {
           <TabsList variant="line" className="main-tabs">
             <TabsTrigger value="week"><LayoutGrid /> Wochenplan</TabsTrigger>
             <TabsTrigger value="day"><CalendarDays /> Tagesfokus</TabsTrigger>
-            {viewer === "all" && <TabsTrigger value="admin"><Settings2 /> Admin</TabsTrigger>}
+            {user.role === "admin" && <TabsTrigger value="admin"><Settings2 /> Admin</TabsTrigger>}
           </TabsList>
-          <div className="view-selector"><span>Ansicht:</span><Select value={viewer} onValueChange={setViewer}><SelectTrigger aria-label="Persönliche Ansicht"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Koordination · alles</SelectItem>{teachers.filter((t) => t.active).map((teacher) => <SelectItem key={teacher.id} value={teacher.id}>{teacher.initials} · {teacher.name}</SelectItem>)}</SelectContent></Select></div>
-          <p className="save-state"><Check size={14} /> Auf diesem Gerät gespeichert</p>
+          {user.role === "admin" && <div className="view-selector"><span>Ansicht:</span><Select value={viewer} onValueChange={setViewer}><SelectTrigger aria-label="Persönliche Ansicht"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Koordination · alles</SelectItem>{teachers.filter((t) => t.active).map((teacher) => <SelectItem key={teacher.id} value={teacher.id}>{teacher.initials} · {teacher.name}</SelectItem>)}</SelectContent></Select></div>}
+          <p className="save-state" role="status"><Check size={14} /> {sync.status}</p>
         </div>
+        <section className="sync-toolbar"><span role="status">{sync.status}</span><label><input type="checkbox" checked={sync.urgent} onChange={e => sync.setUrgent(e.target.checked)} /> Nächste Änderung ist wichtig · Team benachrichtigen</label><Button variant="outline" size="sm" onClick={sync.exportDraft}>Entwurf exportieren</Button><Button variant="outline" size="sm" onClick={sync.retry}>Jetzt abgleichen</Button>{childConflicts.length > 0 && <div className="conflict-alert" role="alert"><strong>Konfliktanalyse: {childConflicts.length} Überschneidung(en)</strong><span>{childConflicts.slice(0, 3).map(conflict => `${conflict.childId} · ${conflict.day} · ${conflict.slot + 1}. Lektion`).join(" · ")}</span><small>Mehrfachzugehörigkeiten sind erlaubt. Hinterlege bei einer einzelnen Lektion unter «Ausnahme-Kürzel» eine zeitlich begrenzte Ausnahme.</small></div>}{sync.notice && <p role="status">{sync.notice}</p>}{sync.conflict && <div role="alert"><p>Jemand hat den Plan gleichzeitig geändert. Dein Entwurf wird nicht überschrieben. Sichere ihn als Datei und lade den aktuellen Teamstand; übertrage anschliessend die gewünschten Anpassungen.</p><Button onClick={sync.resolveConflict}>Entwurf sichern &amp; Teamstand laden</Button></div>}</section>
 
         <TabsContent value="week" className="view-space">
           <section className="planner-toolbar">
@@ -348,7 +348,7 @@ export default function Home() {
           </section>
         </TabsContent>
 
-        <TabsContent value="admin" className="view-space">
+        {user.role === "admin" && <TabsContent value="admin" className="view-space">
           <div className="admin-heading">
             <div><p className="eyebrow">Grundstruktur</p><h2>Planung verwalten</h2><p>Hier werden Vorlagen, Gruppen und das Team für alle künftigen Wochen gepflegt.</p></div>
             <Button variant="outline" onClick={resetDemo}><RotateCcw /> Beispieldaten zurücksetzen</Button>
@@ -382,27 +382,17 @@ export default function Home() {
                 </label>)}
                 <Button variant="outline" className="w-full" onClick={() => setTeachers((old) => [...old, { id: `t${Date.now()}`, name: "Neue Lehrperson", initials: "NL", color: palette[old.length % palette.length], active: true }])}><Plus /> Lehrperson hinzufügen</Button>
               </div>
-              <div className="privacy-note"><CircleAlert /><p><strong>Für die Teamversion:</strong> Persönliche Logins und eine gemeinsame Datenspeicherung werden nach Freigabe des Entwurfs ergänzt.</p></div>
+              <div className="privacy-note"><CircleAlert /><p>Persönliche Konten und gemeinsamer Teamplan sind aktiv. Kinder weiterhin ausschliesslich mit Kürzeln erfassen.</p></div>
             </article>
           </section>
-        </TabsContent>
+        </TabsContent>}
       </Tabs>
+      <AccountSettings user={user} />
 
       <LessonSheet session={activeSession} kind={editTarget?.kind ?? "week"} groups={groups} teachers={teachers.filter((t) => t.active)} open={Boolean(editTarget && activeSession)} onOpenChange={(open) => !open && setEditTarget(null)} onChange={updateActiveSession} onCarry={() => activeSession && carryForward(activeSession)} />
       <Toaster richColors position="bottom-center" />
     </main>
   );
-}
-
-function LoginScreen({ role, onRoleChange, onLogin }: { role: string; onRoleChange: (role: string) => void; onLogin: () => void }) {
-  return <main className="login-shell"><section className="login-card">
-    <img src="https://www.schule-opfikon.ch/inc/customers/opfikon/images/logo-schule-opfikon-new.svg" alt="Schule Opfikon" className="school-logo" />
-    <p className="eyebrow">Testzugang</p><h1>Wochenatelier</h1><p className="login-copy">Unterrichtsplanung für Teamteaching</p>
-    <div className="field-stack"><Label htmlFor="test-user">Ansicht auswählen</Label><Select value={role} onValueChange={onRoleChange}><SelectTrigger id="test-user"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="nici">Nici · Lehrperson</SelectItem><SelectItem value="koordination">Koordination · Gesamtansicht</SelectItem></SelectContent></Select></div>
-    <div className="field-stack"><Label htmlFor="test-password">Testpasswort</Label><Input id="test-password" type="password" defaultValue="Opfikon2026" /></div>
-    <Button className="login-button" onClick={onLogin}>Einloggen</Button>
-    <div className="privacy-note"><CircleAlert /><p><strong>Testdaten:</strong> Es werden keine echten Kindernamen verwendet. Kinder erscheinen nur als Kürzel.</p></div>
-  </section></main>;
 }
 
 function WeekGrid({ sessions, week, weekOffset, groups, teachers, onOpen, onDay, onMove }: {
@@ -513,7 +503,8 @@ function LessonSheet({ session, kind, groups, teachers, open, onOpenChange, onCh
       <div className="field-stack"><Label htmlFor="focus">Stichworte für die Übersicht</Label><Input id="focus" value={session.focus} onChange={(e) => onChange({ focus: e.target.value })} placeholder="z. B. Einführung · Üben · Reflexion" /></div>
       <div className="two-fields"><div className="field-stack"><Label htmlFor="room">Raum</Label><Input id="room" value={session.room} onChange={(e) => onChange({ room: e.target.value })} /></div><label className="whole-class"><Checkbox checked={session.wholeClass} onCheckedChange={(checked) => onChange({ wholeClass: checked === true })} /><span><strong>Alle 39 Kinder</strong><small>Teamteaching ohne Gruppentrennung</small></span></label></div>
       <div className="field-stack"><Label>Gruppen & Zuständigkeit</Label><div className="responsibility-grid">{groups.map((group) => { const teacherId = session.assignments.find((a) => a.groupId === group.id)?.teacherId ?? teachers[0]?.id ?? ""; return <div className="responsibility" key={group.id}><span className="group-tag" style={{ background: tint(group.color, "28"), color: group.color }}><i style={{ background: group.color }} />{group.name}</span><Select value={teacherId} onValueChange={(value) => setAssignment(group.id, value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{teachers.map((teacher) => <SelectItem key={teacher.id} value={teacher.id}>{teacher.initials} · {teacher.name}</SelectItem>)}</SelectContent></Select></div>; })}</div></div>
-      <div className="field-stack"><Label htmlFor="children">Abweichende Kinderzuordnung</Label><Textarea id="children" value={session.children} onChange={(e) => onChange({ children: e.target.value })} placeholder="Nur Abweichungen notieren, z. B. Ben heute in Gruppe 2 …" rows={3} /></div>
+      <div className="field-stack"><Label htmlFor="children">Abweichende Kinderzuordnung</Label><Textarea id="children" value={session.children} onChange={(e) => onChange({ children: e.target.value })} placeholder="Kürzel für diese Lektion, z. B. A03" rows={3} /><small>Mehrfachzugehörigkeit zu Gruppen ist erlaubt. Hier werden nur die Kinder erfasst, die in dieser Lektion tatsächlich anwesend sind.</small></div>
+      <div className="field-stack"><Label htmlFor="child-overrides">Ausnahme-Kürzel für diese Lektion</Label><Input id="child-overrides" value={(session.childOverrides ?? []).join(", ")} onChange={(e) => onChange({ childOverrides: e.target.value.split(/[\s,;]+/).map(value => value.trim().toUpperCase()).filter(Boolean) })} placeholder="z. B. A03" /><small>Nur für diese einzelne Lektion. Die Konfliktprüfung bleibt an allen anderen Tagen aktiv.</small></div>
       <div className="field-stack"><Label htmlFor="notes">Notizen & Material</Label><Textarea id="notes" value={session.notes} onChange={(e) => onChange({ notes: e.target.value })} placeholder="Aufträge, Material, Beobachtungen, Links …" rows={5} /></div>
       {kind === "week" && <div className="status-control"><span>Status</span><div>{(["planned", "open", "done"] as SessionStatus[]).map((status) => <button key={status} className={session.status === status ? "active" : ""} onClick={() => onChange({ status })}>{status === "planned" ? "Geplant" : status === "open" ? "Noch offen" : "Erledigt"}</button>)}</div></div>}
     </div>
