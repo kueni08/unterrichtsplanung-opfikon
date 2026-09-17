@@ -1,6 +1,0 @@
-{
-  "extends": "./tsconfig.json",
-  "compilerOptions": { "types": ["@cloudflare/workers-types", "vite/client"], "incremental": false },
-  "include": ["client/**/*.ts", "client/**/*.tsx", "shared/**/*.ts", "worker/team.ts", "app/page.tsx", "components/**/*.tsx", "hooks/**/*.ts", "lib/**/*.ts"],
-  "exclude": ["node_modules"]
-}
