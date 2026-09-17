@@ -1,4 +1,4 @@
-import { DAYS, SLOTS } from "./constants.ts";
+import { DAYS, SLOTS, isMeetingSlot, slotKind, slotsOfKind, type SlotKind } from "./constants.ts";
 import type { Assignment, DayKey, DayMeta, Group, Session, Teacher, Template, WeekDays } from "./types.ts";
 
 export const newId = (): string => globalThis.crypto.randomUUID();
@@ -47,15 +47,18 @@ export function sessionsIn(list: Session[], container: { weekStart?: string | nu
   return list.filter((s) => s.weekStart === weekStart && s.templateId === templateId);
 }
 
-export function findFreeSlot(container: Session[], day: DayKey, from = 0): number {
+/** Nächster freier Platz der gewünschten Art (Lektion oder Termin) an diesem Tag. */
+export function findFreeSlot(container: Session[], day: DayKey, from = 0, kind: SlotKind = slotKind(from)): number {
   const occupied = new Set(container.filter((s) => s.day === day).map((s) => s.slot));
-  for (let slot = from; slot < SLOTS.length; slot += 1) if (!occupied.has(slot)) return slot;
+  for (const slot of slotsOfKind(kind)) if (slot >= from && !occupied.has(slot)) return slot;
   return -1;
 }
 
 /**
  * Verschiebt einen Block innerhalb eines Containers (Woche oder Vorlage).
- * Belegte Plätze werden nach hinten bzw. vorne aufgeschoben.
+ * Belegte Plätze werden nach hinten bzw. vorne aufgeschoben – nur innerhalb
+ * der gleichen Art von Zeitfenstern (Lektionen bzw. Termine), damit keine
+ * Lektion über Mittag oder in den Abend rutscht.
  * Gibt nur die veränderten Blöcke zurück.
  */
 export function reorderSessions(container: Session[], sessionId: string, targetDay: DayKey, requestedSlot: number): { changed: Session[]; moved: boolean } {
@@ -63,28 +66,33 @@ export function reorderSessions(container: Session[], sessionId: string, targetD
   const targetSlot = Math.max(0, Math.min(SLOTS.length - 1, requestedSlot));
   if (!dragged || (dragged.day === targetDay && dragged.slot === targetSlot)) return { changed: [], moved: false };
 
-  const rest = container.filter((s) => s.id !== sessionId);
-  const shift = (predicate: (s: Session) => boolean, delta: number) =>
-    rest.filter((s) => s.day === targetDay && predicate(s)).map((s) => ({ ...s, slot: s.slot + delta }));
+  // Positionen innerhalb der Spur (z. B. Lektionen 0,1,2,3,4,6,7 → 0..6)
+  const lane = slotsOfKind(slotKind(targetSlot));
+  const targetPos = lane.indexOf(targetSlot);
+  const rest = container.filter((s) => s.id !== sessionId && s.day === targetDay && lane.includes(s.slot));
+  const posOf = (s: Session) => lane.indexOf(s.slot);
+  const shift = (predicate: (pos: number) => boolean, delta: number) =>
+    rest.filter((s) => predicate(posOf(s))).map((s) => ({ ...s, slot: lane[posOf(s) + delta] }));
   const placed = { ...dragged, day: targetDay, slot: targetSlot };
 
-  if (dragged.day === targetDay) {
-    const shifted = targetSlot > dragged.slot
-      ? shift((s) => s.slot > dragged.slot && s.slot <= targetSlot, -1)
-      : shift((s) => s.slot >= targetSlot && s.slot < dragged.slot, 1);
+  const draggedPos = dragged.day === targetDay ? lane.indexOf(dragged.slot) : -1;
+  if (draggedPos >= 0) {
+    const shifted = targetPos > draggedPos
+      ? shift((pos) => pos > draggedPos && pos <= targetPos, -1)
+      : shift((pos) => pos >= targetPos && pos < draggedPos, 1);
     return { changed: [...shifted, placed], moved: true };
   }
 
-  const occupied = new Set(rest.filter((s) => s.day === targetDay).map((s) => s.slot));
-  if (!occupied.has(targetSlot)) return { changed: [placed], moved: true };
+  const occupied = new Set(rest.map(posOf));
+  if (!occupied.has(targetPos)) return { changed: [placed], moved: true };
 
   let freeAfter = -1;
-  for (let i = targetSlot + 1; i < SLOTS.length; i += 1) if (!occupied.has(i)) { freeAfter = i; break; }
-  if (freeAfter >= 0) return { changed: [...shift((s) => s.slot >= targetSlot && s.slot < freeAfter, 1), placed], moved: true };
+  for (let i = targetPos + 1; i < lane.length; i += 1) if (!occupied.has(i)) { freeAfter = i; break; }
+  if (freeAfter >= 0) return { changed: [...shift((pos) => pos >= targetPos && pos < freeAfter, 1), placed], moved: true };
 
   let freeBefore = -1;
-  for (let i = targetSlot - 1; i >= 0; i -= 1) if (!occupied.has(i)) { freeBefore = i; break; }
-  if (freeBefore >= 0) return { changed: [...shift((s) => s.slot > freeBefore && s.slot <= targetSlot, -1), placed], moved: true };
+  for (let i = targetPos - 1; i >= 0; i -= 1) if (!occupied.has(i)) { freeBefore = i; break; }
+  if (freeBefore >= 0) return { changed: [...shift((pos) => pos > freeBefore && pos <= targetPos, -1), placed], moved: true };
 
   return { changed: [], moved: false };
 }
@@ -96,10 +104,11 @@ export function applyChanged(list: Session[], changed: Session[]): Session[] {
   return result;
 }
 
-/** Nächster freier Platz nach dem Block – sonst in der Folgewoche (belegte Plätze werden übersprungen). */
+/** Nächster freier Platz gleicher Art nach dem Block – sonst in der Folgewoche (belegte Plätze werden übersprungen). */
 export function carryForwardTarget(all: Session[], session: Session, nextWeekStart: string): { weekStart: string; day: DayKey; slot: number } | null {
   if (!session.weekStart) return null;
-  const positions = DAYS.flatMap((d) => SLOTS.map((_, slot) => ({ day: d.id, slot })));
+  const lane = slotsOfKind(slotKind(session.slot));
+  const positions = DAYS.flatMap((d) => lane.map((slot) => ({ day: d.id, slot })));
   const index = positions.findIndex((p) => p.day === session.day && p.slot === session.slot);
   const current = sessionsIn(all, { weekStart: session.weekStart });
   const isFree = (list: Session[], p: { day: DayKey; slot: number }) => !list.some((s) => s.day === p.day && s.slot === p.slot);
@@ -115,8 +124,19 @@ export function continuationTitle(title: string): string {
 }
 
 export function isVisibleFor(session: Session, teacherId: string | "all"): boolean {
-  return teacherId === "all" || session.wholeClass
-    || session.assignments.some((a) => !a.off && (a.teacherId === teacherId || a.coTeacherId === teacherId));
+  if (teacherId === "all" || session.wholeClass) return true;
+  // Termine ohne Teilnehmende gelten für das ganze Team
+  if (isMeetingSlot(session.slot) && meetingParticipants(session).length === 0) return true;
+  return session.assignments.some((a) => !a.off && (a.teacherId === teacherId || a.coTeacherId === teacherId));
+}
+
+/** Teilnehmende eines Termins (als Zuweisungen ohne Gruppe gespeichert). */
+export function meetingParticipants(session: Session): string[] {
+  return [...new Set(session.assignments.filter((a) => !a.groupId && !a.off && a.teacherId).map((a) => a.teacherId))];
+}
+
+export function setParticipants(teacherIds: string[]): Assignment[] {
+  return [...new Set(teacherIds)].map((teacherId) => ({ groupId: "", teacherId }));
 }
 
 /** Alle Lehrpersonen eines Blocks (ohne Duplikate, ohne freie Gruppen). */
@@ -137,6 +157,11 @@ export function planningWarnings(sessions: Session[], groups: Group[], teachers:
   if (active.size < 3) warnings.push("Mindestens drei aktive Lehrpersonen sind vorgesehen.");
   for (const s of sessions) {
     if (s.wholeClass) continue;
+    if (isMeetingSlot(s.slot)) {
+      // Termine: nur prüfen, ob Teilnehmende noch aktiv sind
+      if (meetingParticipants(s).some((id) => !active.has(id))) warnings.push(`${s.title}: Eine teilnehmende Lehrperson ist nicht aktiv.`);
+      continue;
+    }
     const relevant = groups
       .map((g) => s.assignments.find((a) => a.groupId === g.id) ?? { groupId: g.id, teacherId: "" })
       .filter((a) => !a.off);

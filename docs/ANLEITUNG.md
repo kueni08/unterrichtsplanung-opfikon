@@ -33,7 +33,16 @@ Den Beitrittscode findet die Koordination im Admin-Bereich und kann ihn dort bei
 
 ## Wochenplan
 
-Der Wochenplan zeigt die Lektionen einer Woche, aufgeteilt nach Wochentag und Zeitfenster.
+Der Wochenplan zeigt die Lektionen einer Woche, aufgeteilt nach Wochentag und Zeitfenster. Die Tagesstruktur folgt dem Stundenplan Kastanie und enthält zusätzlich Zeitfenster für Termine ausserhalb des Unterrichts:
+
+| Abschnitt | Zeitfenster |
+|---|---|
+| Morgen · Unterricht | 1.–5. Lektion (07:30–12:00, Pause nach der 3. Lektion) |
+| **Mittag · Sitzungen** | 12:05–13:35 |
+| Nachmittag · Unterricht | 6.–7. Lektion (13:40–15:15) |
+| **Abend · Sitzungen & Elterngespräche** | 16:00–17:00 · 17:00–18:00 · 18:00–19:30 |
+
+Die Termin-Zeitfenster sind gelb hinterlegt und schraffiert, damit sie sich klar vom Unterricht abheben.
 
 - **Woche aus Vorlage übernehmen**: Eine noch leere Woche lässt sich mit einem Klick aus der oben gewählten Vorlage (z. B. „Stundenplan Kastanie SJ 26/27“) befüllen. Darunter zeigt eine Vorschau den Inhalt der Vorlage; ein Klick auf einen Baustein öffnet ihn (für Lehrpersonen nur lesend). Anwesenheiten und Tagesnotizen übernimmt die Woche aus den Vorgaben der Vorlage.
 - **Lektion hinzufügen**: Auf ein freies Zeitfenster („Planen“) klicken oder den Knopf „Lektion“ verwenden (nimmt das erste freie Zeitfenster des im Tagesfokus gewählten Tages).
@@ -43,6 +52,14 @@ Der Wochenplan zeigt die Lektionen einer Woche, aufgeteilt nach Wochentag und Ze
 - **In die nächste freie Lektion übertragen**: Eine Lektion, die nicht abgeschlossen werden konnte, lässt sich als Fortsetzung in die nächste freie Lektion derselben Woche übertragen – oder, falls die Woche voll ist, in die erste freie Lektion der nächsten Woche. Gibt es die nächste Woche noch nicht, wird sie dabei aus der oben gewählten Vorlage angelegt. Der ursprüngliche Block erhält den Status „übertragen“.
 - **Status**: Jede Lektion hat einen Status (geplant, noch offen, erledigt), der auf einen Blick zeigt, wo noch etwas ansteht; „übertragen“ setzt die App beim Übertragen automatisch.
 - **Entfernen**: Ein Block lässt sich jederzeit wieder löschen.
+
+### Termine über Mittag und am Abend
+
+In den gelben Zeitfenstern („Termin“) lassen sich Sitzungen, Elterngespräche, Elternabende, Weiterbildungen usw. planen. Ein Termin hat Titel, Stichworte, Ort, Traktanden/Notizen und **Teilnehmende** (Lehrpersonen per Häkchen). Ohne Auswahl gilt der Termin für das ganze Team; sonst sehen ihn in der persönlichen Ansicht nur die Teilnehmenden vollständig.
+
+- **Termine bleiben unter sich**: Beim Verschieben oder Übertragen rücken Lektionen nur innerhalb der Unterrichtszeiten und Termine nur innerhalb der Termin-Zeitfenster – eine Lektion rutscht nie über Mittag oder in den Abend.
+- **Einladung versenden**: Im Termin (in einer konkreten Woche, nicht in einer Vorlage) gibt es den Bereich „Einladung versenden“. „Per E-Mail einladen“ öffnet im eigenen Mailprogramm einen fertigen Entwurf mit Datum, Zeit, Ort, Teilnehmenden und Traktanden; Empfänger:innen (z. B. Eltern) können vorher eingetragen werden. „Kalenderdatei (.ics)“ speichert den Termin als Datei, die sich in der Mail anhängen oder direkt in Outlook, Google Kalender oder Apple Kalender importieren lässt. Es werden keine Mails über die App selbst verschickt – der Versand läuft über das eigene Mailprogramm.
+- **Datenschutz**: Auch bei Elterngesprächen nur Kürzel verwenden (z. B. „Elterngespräch A04“). Eltern-Adressen werden nur für den Mail-Entwurf verwendet und nicht in der App gespeichert.
 
 ### Persönliche Ansicht und Gesamtansicht
 
@@ -54,7 +71,7 @@ Der Tagesfokus (auch per Klick auf einen Tageskopf im Wochenplan) zeigt den Tag 
 
 - **Anwesenheit**: Welche Lehrpersonen an diesem Tag im Einsatz sind.
 - **Tagesnotiz**: Ein freies Textfeld für Besonderheiten des Tages (z. B. Besuche, Raumwechsel, Absenzen).
-- **Sitzungen**: Bis zu zwei Sitzungen mit Uhrzeit und Titel pro Tag.
+- **Sitzungen**: Bis zu zwei Kurznotizen mit Uhrzeit und Titel pro Tag (für Termine ausserhalb der festen Zeitfenster). Sitzungen mit Teilnehmenden und Einladung werden im Wochenplan in den Mittag- und Abend-Zeitfenstern geplant.
 
 ## Drucken
 

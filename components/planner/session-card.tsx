@@ -1,6 +1,7 @@
-import { GripVertical, MapPin } from "lucide-react";
+import { CalendarClock, GripVertical, MapPin, Users } from "lucide-react";
 
-import { countChildren, isVisibleFor, sessionTeacherIds } from "@/lib/planner/logic";
+import { isMeetingSlot } from "@/lib/planner/constants";
+import { countChildren, isVisibleFor, meetingParticipants, sessionTeacherIds } from "@/lib/planner/logic";
 import type { Group, Session, Teacher } from "@/lib/planner/types";
 
 const STATUS_LABEL: Record<Session["status"], string> = {
@@ -15,11 +16,35 @@ export function SessionCard({ session, groups, teachers, viewerId = "all", expan
   expanded?: boolean;
   showDragHandle?: boolean;
 }) {
+  const isMeeting = isMeetingSlot(session.slot);
+
   if (viewerId !== "all" && !isVisibleFor(session, viewerId)) {
     return (
-      <div className="session-card is-foreign">
+      <div className={`session-card is-foreign ${isMeeting ? "meeting-card" : ""}`}>
         <div className="session-title-row"><strong>{session.title}</strong></div>
-        <p className="foreign-hint">nicht deine Lektion</p>
+        <p className="foreign-hint">{isMeeting ? "nicht dein Termin" : "nicht deine Lektion"}</p>
+      </div>
+    );
+  }
+
+  if (isMeeting) {
+    const participants = meetingParticipants(session).map((id) => teachers.find((t) => t.id === id)).filter((t): t is Teacher => Boolean(t));
+    return (
+      <div className={`session-card meeting-card ${expanded ? "expanded" : ""} status-${session.status}`} title={session.title}>
+        <div className="session-title-row">
+          {showDragHandle && <span className="card-drag-handle" aria-hidden="true"><GripVertical /></span>}
+          <span className="meeting-icon" aria-hidden="true"><CalendarClock /></span>
+          <strong>{session.title}</strong>
+          {session.status !== "planned" && <span className="status-pill">{STATUS_LABEL[session.status]}</span>}
+        </div>
+        {session.focus && <p>{session.focus}</p>}
+        <div className="meeting-people" title={participants.length ? participants.map((t) => t.name).join(", ") : "ganzes Team"}>
+          <Users size={12} />
+          {participants.length
+            ? participants.map((t) => <span className="teacher-avatar tiny" key={t.id} style={{ background: t.color }}>{t.initials}</span>)
+            : <span className="meeting-all">ganzes Team</span>}
+        </div>
+        {session.room && <div className="room-line"><MapPin size={14} />{session.room}</div>}
       </div>
     );
   }

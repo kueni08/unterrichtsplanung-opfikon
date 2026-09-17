@@ -1,5 +1,5 @@
 import { TEACHER_PALETTE } from "./constants.ts";
-import { cloneTemplateToWeek, daysFromTemplate, deriveTitle, initialsFrom, newId } from "./logic.ts";
+import { cloneTemplateToWeek, daysFromTemplate, deriveTitle, initialsFrom, makeSession, newId, setParticipants } from "./logic.ts";
 import type { Assignment, DayKey, Group, PlannerSnapshot, Session, Teacher, Template, WeekDays } from "./types.ts";
 
 /**
@@ -24,16 +24,16 @@ const KASTANIE: Entry[] = [
   { day: "mo", slot: 1, all: c("NMG", ["Dani"], undefined, { focus: "Ankommen · Singen mit allen", notes: "Dani hat Lead (mit Gitarre)." }) },
   { day: "mo", slot: 2, all: c("Mathe", ["Dani"]) },
   ...[3, 4].map((slot) => ({ day: "mo" as const, slot, perGroup: [c("Englisch", ["Klara"], "Atelier"), c("Englisch", ["Andrea"], "Kreis"), c("Französisch", ["Dani"], "F.bank")] as [Cell, Cell, Cell] })),
-  { day: "mo", slot: 5, perGroup: [F, c("Mathe", ["Dani"], "Atelier"), c("Englisch", ["Klara"], "F.bank")] },
-  { day: "mo", slot: 6, perGroup: [F, c("Deutsch", ["Dani"], "Atelier"), c("Englisch", ["Klara"], "F.bank")] },
+  { day: "mo", slot: 6, perGroup: [F, c("Mathe", ["Dani"], "Atelier"), c("Englisch", ["Klara"], "F.bank")] },
+  { day: "mo", slot: 7, perGroup: [F, c("Deutsch", ["Dani"], "Atelier"), c("Englisch", ["Klara"], "F.bank")] },
   // Dienstag
   { day: "di", slot: 0, perGroup: [c("Englisch", ["Klara"], "Atelier"), F, F] },
   { day: "di", slot: 1, all: c("Musik", ["Andrea", "Dani"], undefined, { focus: "Chor" }) },
   { day: "di", slot: 2, all: c("Mathe", ["Dani"]) },
   { day: "di", slot: 3, all: c("BG", ["Andrea", "Klara"]) },
   { day: "di", slot: 4, all: c("BG", ["Andrea", "Klara"]) },
-  { day: "di", slot: 5, perGroup: [c("Schwimmen", ["Klara"]), c("Sport", ["Dani", "Andrea"]), c("Sport", ["Dani", "Andrea"])] },
-  { day: "di", slot: 6, all: c("Deutsch", ["Dani", "Andrea"], undefined, { focus: "Alle · Training 20'" }) },
+  { day: "di", slot: 6, perGroup: [c("Schwimmen", ["Klara"]), c("Sport", ["Dani", "Andrea"]), c("Sport", ["Dani", "Andrea"])] },
+  { day: "di", slot: 7, all: c("Deutsch", ["Dani", "Andrea"], undefined, { focus: "Alle · Training 20'" }) },
   // Mittwoch
   { day: "mi", slot: 1, all: c("RKE", ["Nici"]) },
   { day: "mi", slot: 2, all: c("Mathe", ["Dani"]) },
@@ -44,14 +44,14 @@ const KASTANIE: Entry[] = [
   { day: "do", slot: 2, all: c("NMG", ["Andrea", "Dani"]) },
   { day: "do", slot: 3, perGroup: [c("Mathe", ["Dani"], "Kreis+"), c("TTG", ["Coni"], "Atelier"), c("Mathe", ["Andrea"], "F.bank")] },
   { day: "do", slot: 4, perGroup: [c("Deutsch", ["Andrea"], "Kreis+"), c("TTG", ["Coni"], "Atelier"), c("Französisch", ["Dani"], "F.bank")] },
-  { day: "do", slot: 5, all: c("NMG", ["Andrea", "Dani"]) },
   { day: "do", slot: 6, all: c("NMG", ["Andrea", "Dani"]) },
+  { day: "do", slot: 7, all: c("NMG", ["Andrea", "Dani"]) },
   // Freitag
   { day: "fr", slot: 1, all: c("Deutsch", ["Coni"]) },
   { day: "fr", slot: 2, perGroup: [c("Deutsch", ["Coni"], "Atelier"), c("Musik", ["Andrea"], "Aula"), c("Mathe", ["Dani"], "Kreis+")] },
   { day: "fr", slot: 3, perGroup: [c("Musik", ["Andrea"], "Aula"), c("Mathe", ["Dani"], "Kreis+"), c("Deutsch", ["Coni"], "Atelier")] },
   { day: "fr", slot: 4, perGroup: [c("Mathe", ["Dani"], "Kreis+"), c("Deutsch", ["Coni"], "Atelier"), c("Musik", ["Andrea"], "Aula")] },
-  ...[5, 6].map((slot) => ({ day: "fr" as const, slot, perGroup: [c("Sport", ["Dani"]), F, c("TTG", ["Coni"], "Atelier")] as [Cell, Cell, Cell] })),
+  ...[6, 7].map((slot) => ({ day: "fr" as const, slot, perGroup: [c("Sport", ["Dani"]), F, c("TTG", ["Coni"], "Atelier")] as [Cell, Cell, Cell] })),
 ];
 
 /** Anwesenheit laut Kopfzeile des Stundenplans */
@@ -190,11 +190,18 @@ export function buildDemoSnapshot(weekStart: string): PlannerSnapshot {
   if (monday[1]) monday[1].status = "done";
   if (monday[2]) { monday[2].status = "open"; monday[2].notes = "Einmaleins-Training noch nicht abgeschlossen. Hufflepuff braucht zusätzliche Begleitung."; }
   const days = daysFromTemplate(main.days, teachers);
-  days.mo = { ...days.mo, note: "10:00 Uhr: Die Schuleule bringt die Post.", meetings: [{ time: "16:15", title: "Stufensitzung" }] };
+  days.mo = { ...days.mo, note: "10:00 Uhr: Die Schuleule bringt die Post.", meetings: [] };
   days.di = { ...days.di, note: "Turnhalle ab 13:40 Uhr für das Besenflug-Training reserviert.", meetings: [] };
-  days.mi = { ...days.mi, meetings: [{ time: "12:15", title: "Kurzabsprache Zaubertrank-Kerker" }] };
-  days.do = { ...days.do, meetings: [{ time: "16:10", title: "Elterngespräch" }, { time: "17:00", title: "Teamplanung im Lehrerzimmer" }] };
   days.fr = { ...days.fr, note: "Bibliotheksbücher zurückbringen – bitte keine fliegenden." };
+  const meeting = (day: DayKey, slot: number, title: string, focus: string, room: string, who: T[]): Session => ({
+    ...makeSession({ day, slot, weekStart, title, focus, room, assignments: setParticipants(who.map(id)) }),
+  });
+  week.push(
+    meeting("mo", 8, "Stufensitzung", "Projektwoche · Elternabend vorbereiten", "Lehrerzimmer", ["Andrea", "Dani", "Klara", "Nici", "Coni"]),
+    meeting("mi", 5, "Kurzabsprache Zaubertrank-Kerker", "Materialliste", "Kerker", ["Dani", "Nici"]),
+    meeting("do", 8, "Elterngespräch H03", "Standortgespräch", "Zimmer 12", ["Andrea"]),
+    meeting("do", 9, "Teamplanung", "Wochenrückblick", "Lehrerzimmer", []),
+  );
   return {
     team: { id: "demo", name: "Hogwarts · Demo-Schule", joinCode: "EULE2026" },
     members: [

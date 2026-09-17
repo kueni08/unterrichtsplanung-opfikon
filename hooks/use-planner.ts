@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import type { PlannerBackend } from "@/lib/planner/backend";
-import { DAYS, SLOTS, TEACHER_PALETTE, GROUP_PALETTE } from "@/lib/planner/constants";
+import { DAYS, SLOTS, TEACHER_PALETTE, GROUP_PALETTE, isMeetingSlot } from "@/lib/planner/constants";
 import {
   applyChanged, carryForwardTarget, continuationTitle, defaultAssignments, emptyDays,
   findFreeSlot, initialsFrom, makeSession, newId, pickFields, reorderSessions, sessionsIn, weekFromTemplate,
@@ -192,7 +192,9 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     if (slot < 0) { toast.error(`${dayLabel(day)} ist bereits voll belegt`); return null; }
     const ops: PersistOp[] = [];
     if (where.weekStart) snap = ensureWeek(snap, where.weekStart, ops);
-    const fresh = makeSession({ ...where, day, slot, assignments: defaultAssignments(snap.groups, snap.teachers) });
+    const fresh = isMeetingSlot(slot)
+      ? makeSession({ ...where, day, slot, title: "Termin", assignments: [] })
+      : makeSession({ ...where, day, slot, assignments: defaultAssignments(snap.groups, snap.teachers) });
     ops.push({ type: "upsertSessions", rows: [fresh] });
     commit({ ...snap, sessions: [...snap.sessions, fresh] }, ops);
     return fresh.id;

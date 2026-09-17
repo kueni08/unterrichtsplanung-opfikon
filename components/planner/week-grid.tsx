@@ -1,10 +1,10 @@
 "use client";
 
 import { Fragment, useState, type DragEvent } from "react";
-import { Clock3, MessageSquareText, Plus, Users } from "lucide-react";
+import { CalendarPlus, Clock3, MessageSquareText, Plus, Users } from "lucide-react";
 
 import { SessionCard } from "@/components/planner/session-card";
-import { AFTERNOON_START, BREAK_AFTER, DAYS, SLOTS } from "@/lib/planner/constants";
+import { BREAK_AFTER, DAYS, PERIOD_LABEL, PERIOD_STARTS, SLOTS } from "@/lib/planner/constants";
 import { addDays, parseIsoDate } from "@/lib/planner/dates";
 import type { DayKey, Group, Session, Teacher, WeekDays } from "@/lib/planner/types";
 
@@ -68,44 +68,50 @@ export function WeekGrid({ sessions, weekDays, weekStart, groups, teachers, view
             </button>
           );
         })}
-        {SLOTS.map((slot, slotIndex) => (
-          <Fragment key={slot.time}>
-            <div className={`grid-row-contents ${slotIndex === AFTERNOON_START ? "afternoon-start" : ""}`}>
-              <div className="time-cell">
-                <strong>{slot.time}–{slot.end}</strong><span>{slot.label}</span>
-                {(slotIndex === 0 || slotIndex === AFTERNOON_START) && <em>{slot.period}</em>}
+        {SLOTS.map((slot, slotIndex) => {
+          const isMeeting = slot.kind === "meeting";
+          return (
+            <Fragment key={slot.time}>
+              {PERIOD_STARTS.has(slotIndex) && <div className={`period-row ${isMeeting ? "is-meeting" : ""}`}>{PERIOD_LABEL[slot.period]}</div>}
+              <div className={`grid-row-contents ${isMeeting ? "slot-meeting" : ""}`}>
+                <div className="time-cell">
+                  <strong>{slot.time}–{slot.end}</strong><span>{slot.label}</span>
+                  {slotIndex === 0 && <em>{slot.period}</em>}
+                </div>
+                {DAYS.map((day) => {
+                  const item = sessions.find((session) => session.day === day.id && session.slot === slotIndex);
+                  const isTarget = dropTarget?.day === day.id && dropTarget.slot === slotIndex;
+                  return (
+                    <button
+                      type="button"
+                      className={`lesson-cell ${isMeeting ? "meeting-cell" : ""} ${item?.id === draggedId ? "is-dragging" : ""} ${isTarget ? `drop-${dropTarget.edge}` : ""}`}
+                      key={`${day.id}-${slotIndex}`}
+                      draggable={Boolean(item)}
+                      onDragStart={(event) => {
+                        if (!item) return;
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("application/x-lesson-id", item.id);
+                        event.dataTransfer.setData("text/plain", item.title);
+                        setDraggedId(item.id);
+                      }}
+                      onDragOver={(event) => dragOver(event, day.id, slotIndex, Boolean(item))}
+                      onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDropTarget(null); }}
+                      onDrop={(event) => drop(event, day.id, slotIndex, Boolean(item))}
+                      onDragEnd={() => { setDraggedId(null); setDropTarget(null); }}
+                      onClick={() => onOpen(day.id, slotIndex)}
+                      aria-label={`${day.label}, ${slot.label}${item ? ": öffnen" : isMeeting ? ": Termin planen" : " planen"}`}
+                    >
+                      {item
+                        ? <SessionCard session={item} groups={groups} teachers={teachers} viewerId={viewerId} showDragHandle />
+                        : <span className="add-cell">{isMeeting ? <><CalendarPlus size={16} /> Termin</> : <><Plus size={16} /> Planen</>}</span>}
+                    </button>
+                  );
+                })}
               </div>
-              {DAYS.map((day) => {
-                const item = sessions.find((session) => session.day === day.id && session.slot === slotIndex);
-                const isTarget = dropTarget?.day === day.id && dropTarget.slot === slotIndex;
-                return (
-                  <button
-                    type="button"
-                    className={`lesson-cell ${item?.id === draggedId ? "is-dragging" : ""} ${isTarget ? `drop-${dropTarget.edge}` : ""}`}
-                    key={`${day.id}-${slotIndex}`}
-                    draggable={Boolean(item)}
-                    onDragStart={(event) => {
-                      if (!item) return;
-                      event.dataTransfer.effectAllowed = "move";
-                      event.dataTransfer.setData("application/x-lesson-id", item.id);
-                      event.dataTransfer.setData("text/plain", item.title);
-                      setDraggedId(item.id);
-                    }}
-                    onDragOver={(event) => dragOver(event, day.id, slotIndex, Boolean(item))}
-                    onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDropTarget(null); }}
-                    onDrop={(event) => drop(event, day.id, slotIndex, Boolean(item))}
-                    onDragEnd={() => { setDraggedId(null); setDropTarget(null); }}
-                    onClick={() => onOpen(day.id, slotIndex)}
-                    aria-label={`${day.label}, ${slot.label}${item ? ": öffnen" : " planen"}`}
-                  >
-                    {item ? <SessionCard session={item} groups={groups} teachers={teachers} viewerId={viewerId} showDragHandle /> : <span className="add-cell"><Plus size={16} /> Planen</span>}
-                  </button>
-                );
-              })}
-            </div>
-            {BREAK_AFTER[slotIndex] && <div className="break-row">{BREAK_AFTER[slotIndex]}</div>}
-          </Fragment>
-        ))}
+              {BREAK_AFTER[slotIndex] && <div className="break-row">{BREAK_AFTER[slotIndex]}</div>}
+            </Fragment>
+          );
+        })}
       </div>
     </div>
   );
