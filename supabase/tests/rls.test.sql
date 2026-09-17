@@ -54,7 +54,7 @@ select pg_temp.expect_error($q$insert into public.sessions (team_id, week_start,
   select team_id, week_start, 'mo', 0, 'Doppelt' from public.weeks limit 1; set constraints all immediate$q$, 'Doppelbelegung');
 
 select pg_temp.expect_error($q$insert into public.weeks (team_id, week_start) select id, '2026-09-16' from public.teams limit 1$q$, 'Wochenstart muss Montag sein');
-select pg_temp.expect_error($q$insert into public.sessions (team_id, week_start, day, slot) select team_id, week_start, 'fr', 7 from public.weeks limit 1$q$, 'Zeitfenster ausserhalb des Rasters');
+select pg_temp.expect_error($q$insert into public.sessions (team_id, week_start, day, slot) select team_id, week_start, 'fr', 11 from public.weeks limit 1$q$, 'Zeitfenster ausserhalb des Rasters');
 
 -- Blöcke per Teil-Upsert (nur Position) tauschen, Inhalt bleibt erhalten
 insert into public.sessions (id, team_id, week_start, template_id, day, slot) values

@@ -260,8 +260,8 @@ export function MiniTemplate({ sessions, groups, teachers, onOpen, readOnly = fa
         <div />
         {DAYS.map((d) => <strong key={d.id}>{d.short}</strong>)}
         {SLOTS.map((slot, index) => (
-          <div className="mini-row" key={slot.time}>
-            <span>{index + 1}</span>
+          <div className={`mini-row ${slot.kind === "meeting" ? "slot-meeting" : ""}`} key={slot.time}>
+            <span title={`${slot.label} · ${slot.time}–${slot.end}`}>{slot.short}</span>
             {DAYS.map((day) => {
               const item = sessions.find((session) => session.day === day.id && session.slot === index);
               const accent = item?.wholeClass ? "#A98BC4" : groups.find((g) => g.id === item?.assignments[0]?.groupId)?.color ?? "#D9E0E8";

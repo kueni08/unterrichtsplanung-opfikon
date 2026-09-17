@@ -1,13 +1,13 @@
 "use client";
 
 import { Fragment } from "react";
-import { Clock3, MessageSquareText, Plus, Users } from "lucide-react";
+import { CalendarPlus, Clock3, MessageSquareText, Plus, Users } from "lucide-react";
 
 import { SessionCard } from "@/components/planner/session-card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { BREAK_AFTER, DAYS, SLOTS } from "@/lib/planner/constants";
+import { BREAK_AFTER, DAYS, PERIOD_LABEL, PERIOD_STARTS, SLOTS } from "@/lib/planner/constants";
 import { addDays, parseIsoDate } from "@/lib/planner/dates";
 import type { DayKey, DayMeta, Group, Meeting, Session, Teacher } from "@/lib/planner/types";
 
@@ -46,11 +46,15 @@ export function DayView({ weekStart, selectedDay, onSelectDay, sessions, groups,
         <div className="timeline">
           {SLOTS.map((slot, index) => {
             const item = sessions.find((session) => session.day === selectedDay && session.slot === index);
+            const isMeeting = slot.kind === "meeting";
             return (
               <Fragment key={slot.time}>
-                <button type="button" className="timeline-row" onClick={() => onOpenSession(selectedDay, index)} disabled={disabled}>
+                {PERIOD_STARTS.has(index) && <div className={`timeline-period ${isMeeting ? "is-meeting" : ""}`}>{PERIOD_LABEL[slot.period]}</div>}
+                <button type="button" className={`timeline-row ${isMeeting ? "slot-meeting" : ""}`} onClick={() => onOpenSession(selectedDay, index)} disabled={disabled}>
                   <div className="timeline-time"><strong>{slot.time}–{slot.end}</strong><span>{slot.label}</span></div>
-                  {item ? <SessionCard session={item} groups={groups} teachers={teachers} viewerId={viewerId} expanded /> : <div className="timeline-empty"><Plus size={17} /> Freier Block</div>}
+                  {item
+                    ? <SessionCard session={item} groups={groups} teachers={teachers} viewerId={viewerId} expanded />
+                    : <div className="timeline-empty">{isMeeting ? <><CalendarPlus size={17} /> Freier Termin</> : <><Plus size={17} /> Freier Block</>}</div>}
                 </button>
                 {BREAK_AFTER[index] && <div className="timeline-break">{BREAK_AFTER[index]}</div>}
               </Fragment>

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { DAYS, SLOTS } from "./constants.ts";
+import { DAYS, SLOTS, slotsOfKind } from "./constants.ts";
 import type { DayKey, Group, Session, Teacher } from "./types.ts";
 import {
   carryForwardTarget,
@@ -9,13 +9,16 @@ import {
   countChildren,
   daysFromTemplate,
   deriveTitle,
+  findFreeSlot,
   initialsFrom,
   isVisibleFor,
+  meetingParticipants,
   normalizeDays,
   planningWarnings,
   reorderSessions,
   sessionTeacherIds,
   setAssignment,
+  setParticipants,
 } from "./logic.ts";
 import { buildDemoSnapshot, buildStarterContent, DEMO_USERS } from "./demo.ts";
 
@@ -170,10 +173,10 @@ test("carryForwardTarget: skips occupied slots later in the same week", () => {
 test("carryForwardTarget: when the current week is full, finds the first FREE slot next week (skipping occupied ones)", () => {
   const week1 = "2026-09-14";
   const week2 = "2026-09-21";
-  // Session sits at the very last position of week1 (fr, last slot) so every
+  // Session sits in the last lesson slot of Monday; carrying forward stays within lesson slots, so every
   // remaining position "later in the same week" is exhausted immediately —
   // but we additionally fill the rest of week1 to be explicit/robust.
-  const session = makeSession("a", "mo", SLOTS.length - 1, { weekStart: week1 });
+  const session = makeSession("a", "mo", slotsOfKind("lesson").at(-1)!, { weekStart: week1 });
   const restOfWeek1: Session[] = [session];
   for (const pos of allPositions()) {
     if (pos.day === "mo") continue; // "mo" only contains the session itself (last slot).
@@ -193,7 +196,7 @@ test("carryForwardTarget: when the current week is full, finds the first FREE sl
 test("carryForwardTarget: returns null when both weeks are completely full", () => {
   const week1 = "2026-09-14";
   const week2 = "2026-09-21";
-  const session = makeSession("a", "mo", SLOTS.length - 1, { weekStart: week1 });
+  const session = makeSession("a", "mo", slotsOfKind("lesson").at(-1)!, { weekStart: week1 });
   const week1Rest: Session[] = [session];
   for (const pos of allPositions()) {
     if (pos.day === "mo") continue; // "mo" only contains the session itself (last slot).
@@ -490,7 +493,7 @@ test("buildStarterContent: Stundenplan Kastanie with 5 teachers, classes 3–5, 
   assert.equal(templates[0].name, "Stundenplan Kastanie SJ 26/27");
   const main = sessions.filter((x) => x.templateId === templates[0].id);
   assert.equal(main.length, 31);
-  assert.ok(main.every((x) => x.slot >= 0 && x.slot < 7));
+  assert.ok(main.every((x) => slotsOfKind("lesson").includes(x.slot)), "Stundenplan belegt nur Lektionen, keine Termin-Slots");
   const monday4 = main.find((x) => x.day === "mo" && x.slot === 3);
   assert.equal(monday4?.title, "Englisch · Französisch");
   assert.ok(monday4?.assignments.some((a) => a.teacherId === founder.id && a.room === "Kreis"));
@@ -509,4 +512,55 @@ test("buildDemoSnapshot uses invented names only (no real teacher names from the
   assert.deepEqual(snap.teachers.map((t) => t.initials), ["AD", "MM", "SS", "HG", "RH"]);
   assert.equal(DEMO_USERS.koordination.displayName, "Minerva McGonagall");
   assert.equal(DEMO_USERS.lehrperson.displayName, "Hermine Granger");
+});
+
+// ---------------------------------------------------------------------------
+// Termine (Mittag/Abend) und Lektionen bleiben in getrennten Spuren
+// ---------------------------------------------------------------------------
+
+test("findFreeSlot: sucht nur in Zeitfenstern der gleichen Art", () => {
+  const lessons = slotsOfKind("lesson");
+  const meetings = slotsOfKind("meeting");
+  const container: Session[] = lessons.map((slot) => makeSession(`l${slot}`, "mo", slot));
+  assert.equal(findFreeSlot(container, "mo", 0, "lesson"), -1, "alle Lektionen belegt");
+  assert.equal(findFreeSlot(container, "mo", 0, "meeting"), meetings[0], "erster Termin-Slot ist frei");
+  assert.equal(findFreeSlot(container, "mo", meetings[0]), meetings[0], "Art wird vom Startplatz abgeleitet");
+});
+
+test("reorderSessions: Verschieben einer Lektion verdrängt keinen Termin über Mittag", () => {
+  const meeting = makeSession("m", "mo", 5);
+  const container: Session[] = [makeSession("a", "di", 0), makeSession("x4", "mo", 4), makeSession("x6", "mo", 6), meeting];
+  // Platz 4 ist belegt, Platz 6 auch → nächste freie Lektion ist 7; die 5 (Mittag) wird übersprungen
+  const result = reorderSessions(container, "a", "mo", 4);
+  assert.equal(result.moved, true);
+  const byId = new Map(result.changed.map((s) => [s.id, s]));
+  assert.equal(byId.get("x4")?.slot, 6);
+  assert.equal(byId.get("x6")?.slot, 7);
+  assert.equal(byId.get("a")?.slot, 4);
+  assert.equal(byId.has("m"), false, "Termin bleibt unangetastet");
+});
+
+test("carryForwardTarget: Termine werden nur in Termin-Slots übertragen", () => {
+  const week1 = "2026-09-14";
+  const session = makeSession("m", "mo", 5, { weekStart: week1 });
+  const result = carryForwardTarget([session], session, "2026-09-21");
+  assert.deepEqual(result, { weekStart: week1, day: "mo", slot: 8 });
+});
+
+test("isVisibleFor: Termin ohne Teilnehmende gilt für alle, mit Teilnehmenden nur für diese", () => {
+  const open = makeSession("m1", "mo", 5);
+  const closed = makeSession("m2", "mo", 8, { assignments: setParticipants(["t1"]) });
+  assert.equal(isVisibleFor(open, "t9"), true);
+  assert.equal(isVisibleFor(closed, "t9"), false);
+  assert.equal(isVisibleFor(closed, "t1"), true);
+  assert.deepEqual(meetingParticipants(closed), ["t1"]);
+});
+
+test("planningWarnings: Termine lösen keine Gruppen-Warnungen aus", () => {
+  const teachers: Teacher[] = ["t1", "t2", "t3"].map((id, i) => ({ id, name: id, initials: id, color: "#000", active: true, sortOrder: i }));
+  const groups: Group[] = [{ id: "g1", name: "G1", short: "G1", color: "#000", children: "A01", sortOrder: 0 }];
+  const meeting = makeSession("m", "mo", 5, { title: "Sitzung" });
+  assert.deepEqual(planningWarnings([meeting], groups, teachers), []);
+  const withInactive = makeSession("m2", "mo", 8, { title: "Gespräch", assignments: setParticipants(["t9"]) });
+  assert.deepEqual(planningWarnings([withInactive], groups, teachers), ["Gespräch: Eine teilnehmende Lehrperson ist nicht aktiv."]);
 });
