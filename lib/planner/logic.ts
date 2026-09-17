@@ -153,7 +153,53 @@ export function isVisibleFor(session: Session, teacherId: string | "all"): boole
   if (teacherId === "all" || session.wholeClass) return true;
   // Termine ohne Teilnehmende gelten für das ganze Team
   if (isMeetingSlot(session.slot) && meetingParticipants(session).length === 0) return true;
-  return session.assignments.some((a) => !a.off && (a.teacherId === teacherId || a.coTeacherId === teacherId));
+  return resolveAssignments(session.assignments).some((a) => !a.off && (a.teacherId === teacherId || a.coTeacherId === teacherId));
+}
+
+/**
+ * Zusammengelegte Gruppen auflösen: Eine Gruppe mit `withGroupId` übernimmt Lehrpersonen,
+ * Fach und Raum der Leitgruppe (Ketten werden verfolgt, Zyklen abgefangen).
+ */
+export function resolveAssignments(assignments: Assignment[]): Assignment[] {
+  const byGroup = new Map(assignments.map((a) => [a.groupId, a]));
+  return assignments.map((a) => {
+    if (!a.withGroupId) return a;
+    let lead: Assignment | undefined = a;
+    const seen = new Set<string>();
+    while (lead?.withGroupId && !seen.has(lead.groupId)) { seen.add(lead.groupId); lead = byGroup.get(lead.withGroupId); }
+    if (!lead || lead === a || lead.withGroupId) return { ...a, withGroupId: undefined };
+    const merged: Assignment = { ...a, teacherId: lead.teacherId, off: lead.off };
+    for (const key of ["coTeacherId", "subject", "room"] as const) { if (lead[key]) merged[key] = lead[key]; else delete merged[key]; }
+    if (!merged.off) delete merged.off;
+    return merged;
+  });
+}
+
+/** Leitgruppe einer zusammengelegten Gruppe (oder die Gruppe selbst). */
+export function leadGroupId(assignments: Assignment[], groupId: string): string {
+  const byGroup = new Map(assignments.map((a) => [a.groupId, a]));
+  let current = byGroup.get(groupId);
+  const seen = new Set<string>();
+  while (current?.withGroupId && !seen.has(current.groupId)) { seen.add(current.groupId); current = byGroup.get(current.withGroupId); }
+  return current?.groupId ?? groupId;
+}
+
+export type GroupCluster = { assignment: Assignment; groups: Group[] };
+
+/** Gruppen einer Lektion für die Anzeige bündeln: zusammengelegte Gruppen erscheinen als eine Zeile. */
+export function groupClusters(assignments: Assignment[], groups: Group[]): GroupCluster[] {
+  const resolved = resolveAssignments(assignments);
+  const clusters = new Map<string, GroupCluster>();
+  for (const group of groups) {
+    const a = resolved.find((x) => x.groupId === group.id);
+    if (!a) continue;
+    const lead = a.withGroupId ? leadGroupId(assignments, group.id) : group.id;
+    const existing = clusters.get(lead);
+    if (existing) { existing.groups.push(group); continue; }
+    const leadAssignment = resolved.find((x) => x.groupId === lead) ?? a;
+    clusters.set(lead, { assignment: leadAssignment, groups: [group] });
+  }
+  return [...clusters.values()];
 }
 
 /** Teilnehmende eines Termins (als Zuweisungen ohne Gruppe gespeichert). */
@@ -167,13 +213,13 @@ export function setParticipants(teacherIds: string[]): Assignment[] {
 
 /** Alle Lehrpersonen eines Blocks (ohne Duplikate, ohne freie Gruppen). */
 export function sessionTeacherIds(session: Session): string[] {
-  const ids = session.assignments.filter((a) => !a.off).flatMap((a) => [a.teacherId, a.coTeacherId ?? ""]);
+  const ids = resolveAssignments(session.assignments).filter((a) => !a.off).flatMap((a) => [a.teacherId, a.coTeacherId ?? ""]);
   return [...new Set(ids.filter(Boolean))];
 }
 
 /** Titel aus den Fächern der Gruppen ableiten (z. B. „Englisch · Französisch“). */
 export function deriveTitle(assignments: Assignment[], fallback: string): string {
-  const subjects = [...new Set(assignments.filter((a) => !a.off && a.subject).map((a) => a.subject as string))];
+  const subjects = [...new Set(resolveAssignments(assignments).filter((a) => !a.off && a.subject).map((a) => a.subject as string))];
   return subjects.length ? subjects.join(" · ") : fallback;
 }
 
@@ -188,8 +234,9 @@ export function planningWarnings(sessions: Session[], groups: Group[], teachers:
       if (meetingParticipants(s).some((id) => !active.has(id))) warnings.push(`${s.title}: Eine teilnehmende Lehrperson ist nicht aktiv.`);
       continue;
     }
+    const resolved = resolveAssignments(s.assignments);
     const relevant = groups
-      .map((g) => s.assignments.find((a) => a.groupId === g.id) ?? { groupId: g.id, teacherId: "" })
+      .map((g) => resolved.find((a) => a.groupId === g.id) ?? { groupId: g.id, teacherId: "" })
       .filter((a) => !a.off);
     if (relevant.some((a) => !a.teacherId)) warnings.push(`${s.title}: Zuständigkeit noch offen.`);
     else if (relevant.some((a) => !active.has(a.teacherId) || (a.coTeacherId && !active.has(a.coTeacherId)))) warnings.push(`${s.title}: Eine zugeteilte Lehrperson ist nicht aktiv.`);
@@ -226,9 +273,22 @@ export function cloneTemplateToWeek(templateSessions: Session[], weekStart: stri
 export function setAssignment(assignments: Assignment[], groupId: string, patch: Partial<Assignment>): Assignment[] {
   const existing = assignments.find((a) => a.groupId === groupId) ?? { groupId, teacherId: "" };
   const next: Assignment = { ...existing, ...patch, groupId };
+  if (next.withGroupId === groupId) delete next.withGroupId;
+  if (next.withGroupId) {
+    // zusammengelegt: eigene Angaben entfallen, sie kommen von der Leitgruppe
+    next.teacherId = "";
+    delete next.coTeacherId; delete next.subject; delete next.room; delete next.off;
+  } else {
+    delete next.withGroupId;
+  }
   for (const key of ["coTeacherId", "subject", "room"] as const) if (!next[key]) delete next[key];
   if (!next.off) delete next.off;
   return [...assignments.filter((a) => a.groupId !== groupId), next];
+}
+
+/** Gruppen, die sich als Leitgruppe für `groupId` eignen (keine Zyklen, nicht selbst zusammengelegt). */
+export function mergeCandidates(assignments: Assignment[], groups: Group[], groupId: string): Group[] {
+  return groups.filter((g) => g.id !== groupId && leadGroupId(assignments, g.id) !== groupId && !assignments.find((a) => a.groupId === g.id)?.withGroupId);
 }
 
 /** Tagesvorgaben einer Vorlage auf die aktuellen Lehrpersonen anwenden. */

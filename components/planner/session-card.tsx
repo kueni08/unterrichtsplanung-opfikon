@@ -1,7 +1,7 @@
 import { CalendarClock, GripVertical, MapPin, Users } from "lucide-react";
 
 import { isMeetingSlot } from "@/lib/planner/constants";
-import { countChildren, isVisibleFor, meetingParticipants, sessionTeacherIds } from "@/lib/planner/logic";
+import { countChildren, groupClusters, isVisibleFor, meetingParticipants, sessionTeacherIds } from "@/lib/planner/logic";
 import type { Group, Session, Teacher } from "@/lib/planner/types";
 
 const STATUS_LABEL: Record<Session["status"], string> = {
@@ -49,9 +49,8 @@ export function SessionCard({ session, groups, teachers, viewerId = "all", expan
     );
   }
 
-  const knownGroupIds = new Set(groups.map((g) => g.id));
-  const activeAssignments = session.assignments.filter((a) => !a.off);
-  const subjectsDiffer = new Set(activeAssignments.filter((a) => a.subject).map((a) => a.subject)).size > 1;
+  const clusters = groupClusters(session.assignments, groups);
+  const subjectsDiffer = new Set(clusters.filter((c) => !c.assignment.off && c.assignment.subject).map((c) => c.assignment.subject)).size > 1;
 
   return (
     <div className={`session-card ${expanded ? "expanded" : ""} status-${session.status}`} title={session.title}>
@@ -71,18 +70,18 @@ export function SessionCard({ session, groups, teachers, viewerId = "all", expan
             </span>
           </div>
         ) : (
-          session.assignments
-            .filter((a) => knownGroupIds.has(a.groupId))
+          clusters
             .slice(0, expanded ? 6 : 3)
-            .map((assignment) => {
-              const group = groups.find((g) => g.id === assignment.groupId);
-              if (!group) return null;
+            .map(({ assignment, groups: members }) => {
+              const label = members.map((g) => g.short).join(" + ");
+              const dots = <span className="group-dots">{members.map((g) => <span className="group-dot" key={g.id} style={{ background: g.color }} />)}</span>;
+              const key = members[0].id;
 
               if (assignment.off) {
                 return (
-                  <div className="assignment is-off" key={assignment.groupId} title={`${group.name} · frei`}>
-                    <span className="group-dot" style={{ background: group.color }} />
-                    <b>{group.short}</b>
+                  <div className="assignment is-off" key={key} title={`${members.map((g) => g.name).join(" + ")} · frei`}>
+                    {dots}
+                    <b>{label}</b>
                     <span className="teacher-free">frei</span>
                   </div>
                 );
@@ -92,12 +91,12 @@ export function SessionCard({ session, groups, teachers, viewerId = "all", expan
               const coTeacher = assignment.coTeacherId ? teachers.find((t) => t.id === assignment.coTeacherId) : null;
               const showSubject = Boolean(assignment.subject) && (subjectsDiffer || assignment.subject !== session.title);
               const detail = [showSubject ? assignment.subject : null, assignment.room].filter(Boolean).join(" · ");
-              const tooltip = [group.name, assignment.subject, assignment.room].filter(Boolean).join(" · ");
+              const tooltip = [members.map((g) => g.name).join(" + "), assignment.subject, assignment.room].filter(Boolean).join(" · ");
 
               return (
-                <div className="assignment" key={assignment.groupId} title={tooltip}>
-                  <span className="group-dot" style={{ background: group.color }} />
-                  <b>{group.short}</b>
+                <div className={`assignment ${members.length > 1 ? "is-merged" : ""}`} key={key} title={tooltip}>
+                  {dots}
+                  <b>{label}</b>
                   {teacher
                     ? <span>{teacher.initials}{coTeacher ? `/${coTeacher.initials}` : ""}</span>
                     : <span className="teacher-open">offen</span>}
