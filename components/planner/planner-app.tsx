@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpenCheck, CalendarDays, Check, CheckCheck, ChevronLeft, ChevronRight, CircleAlert, CopyPlus, GripVertical, HelpCircle, LayoutGrid, LogOut, Printer, Settings2, TriangleAlert, Users } from "lucide-react";
+import { BookOpenCheck, CalendarDays, Check, CheckCheck, ChevronLeft, ChevronRight, CircleAlert, CopyPlus, GripVertical, HelpCircle, LayoutGrid, LogOut, Printer, Settings2, TriangleAlert, UserRound, Users } from "lucide-react";
 
 import { AdminView, MiniTemplate } from "@/components/planner/admin-view";
 import { DayView } from "@/components/planner/day-view";
+import { ChildrenView } from "@/components/planner/children-view";
 import { HomeworkView } from "@/components/planner/homework-view";
 import { LessonSheet } from "@/components/planner/lesson-sheet";
 import { MoveDialog, type MoveConflict } from "@/components/planner/move-dialog";
@@ -58,7 +59,7 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
   onExitDemo?: () => void;
 }) {
   const api = usePlanner(backend, { userId, displayName });
-  const [tab, setTab] = useState<"week" | "day" | "homework" | "admin">("week");
+  const [tab, setTab] = useState<"week" | "day" | "homework" | "kids" | "admin">("week");
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState<DayKey>(defaultDayForToday);
   const [viewOverride, setViewOverride] = useState<string | null>(null);
@@ -187,6 +188,7 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
             <TabsTrigger value="week"><LayoutGrid /> Wochenplan</TabsTrigger>
             <TabsTrigger value="day"><CalendarDays /> Tagesfokus</TabsTrigger>
             <TabsTrigger value="homework"><BookOpenCheck /> Hausaufgaben</TabsTrigger>
+            <TabsTrigger value="kids"><UserRound /> Kinder</TabsTrigger>
             {api.isCoordinator && <TabsTrigger value="admin"><Settings2 /> Admin</TabsTrigger>}
           </TabsList>
           <div className="view-selector">
@@ -307,6 +309,9 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
 
         <TabsContent value="homework" className="view-space">
           <HomeworkView sessions={snapshot.sessions} groups={snapshot.groups} onOpen={(id) => setSheetSessionId(id)} />
+        </TabsContent>
+        <TabsContent value="kids" className="view-space">
+          <ChildrenView api={api} kids={snapshot.children} notes={snapshot.childNotes} groups={snapshot.groups} members={snapshot.members} currentUserId={userId} isCoordinator={api.isCoordinator} />
         </TabsContent>
         {api.isCoordinator && (
           <TabsContent value="admin" className="view-space">

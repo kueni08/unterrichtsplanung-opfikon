@@ -78,6 +78,10 @@ Zusätzliche Regeln, die in der Datenbank erzwungen werden:
 
 Tabelle `children` (Vor-/Nachname, Kürzel, `group_id`), RLS wie bei `groups` (Mitglieder lesen, Koordination schreibt). `groups.children` bleibt als Kürzel-Spiegel der Zuordnung bestehen (`syncGroupChildren` in `lib/planner/children.ts`), damit Zählung und Kinderzuordnung pro Lektion unverändert funktionieren. Der Excel-Import nutzt SheetJS (`xlsx`), das erst beim Import nachgeladen wird.
 
+## Verhaltensnotizen
+
+Tabelle `child_notes` (Kind, Art `plus|minus|info`, Text, Datum, `author_id`). Alle Teammitglieder lesen und erfassen (nur mit eigener `author_id`); ändern/löschen darf die erfassende Person oder die Koordination. Beim Löschen eines Kindes werden seine Notizen kaskadierend gelöscht.
+
 ## Realtime
 
 Alle Tabellen sind Teil der Supabase-Realtime-Publikation (`supabase_realtime`) mit `replica identity full`. Die App abonniert Einfügungen und Änderungen gefiltert nach Team; Löschungen lassen sich in Supabase Realtime nicht filtern und liefern bei RLS nur den Primärschlüssel – sie werden daher ungefiltert abonniert und in der App anhand der bekannten IDs zugeordnet. Bei jedem Ereignis lädt die App den Teamstand kurz verzögert neu (nicht, solange eigene Änderungen noch gespeichert werden). Gespeichert werden nur die jeweils geänderten Felder, damit gleichzeitige Änderungen an verschiedenen Feldern nicht verloren gehen; bei gleichzeitiger Änderung desselben Feldes gilt die zuletzt gespeicherte. Die Presence-Funktion liefert die Online-Anzeige.

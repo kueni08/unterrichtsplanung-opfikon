@@ -8,6 +8,7 @@ Digitale Wochenplanung für altersdurchmischte Klassen und Teamteaching an der S
 - **Gruppen zusammenlegen** – zwei Gruppen in einer Lektion als eine Einheit mit einer Lehrperson planen („zusammen mit …“), ohne gleich die ganze Klasse zu wählen.
 - **Hausaufgaben & Rückblick** – pro Lektion „Hausaufgaben“ und „Fürs nächste Mal“; der Editor zeigt automatisch die letzten Lektionen desselben Fachs, der Reiter „Hausaufgaben“ die zuletzt verteilten Aufgaben je Fach.
 - **Vorschläge beim Tippen** – Fächer (Vorgaben + im Team verwendete) und Räume als Auswahl mit Filter, freie Eingaben möglich; Kindersuche nach Namensanfang.
+- **Kinder-Dossier** – Verhaltensnotizen (positiv / Ermahnung / Notiz) pro Kind erfassen und im Dossier mit Verlauf und Zählern abrufen.
 - **Wochenplan** – Lektionen pro Tag und Zeitfenster planen, per Drag & Drop (oder über den Knopf „Verschieben“ auf Tablets) verschieben, in die nächste freie Lektion übertragen und mit Status (geplant, offen, erledigt, übertragen) versehen.
 - **Tagesfokus** – Anwesenheit der Lehrpersonen, eine Tagesnotiz fürs ganze Team und bis zu zwei Sitzungen pro Tag festhalten.
 - **Vorlagen** – jedes neue Team startet mit „Stundenplan Kastanie SJ 26/27“ und „Projektwoche“. Die Koordination pflegt deren Bausteine, Standard-Anwesenheit und Tagesnotizen; neue Wochen entstehen mit einem Klick daraus (mit Vorschau für alle).

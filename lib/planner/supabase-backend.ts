@@ -2,11 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { PlannerBackend } from "./backend.ts";
 import { makeSession, normalizeDays } from "./logic.ts";
-import type { Assignment, Child, DayKey, Group, Member, PersistOp, PlannerSnapshot, Role, Session, SessionStatus, Teacher, Template, WeekDays } from "./types.ts";
+import type { Assignment, Child, ChildNote, DayKey, Group, Member, NoteKind, PersistOp, PlannerSnapshot, Role, Session, SessionStatus, Teacher, Template, WeekDays } from "./types.ts";
 
 type Row = Record<string, unknown>;
 
-const TABLES = ["teams", "team_members", "teachers", "groups", "children", "templates", "weeks", "sessions"] as const;
+const TABLES = ["teams", "team_members", "teachers", "groups", "children", "child_notes", "templates", "weeks", "sessions"] as const;
 
 const toTeacher = (r: Row): Teacher => ({
   id: String(r.id), name: String(r.name), initials: String(r.initials), color: String(r.color),
@@ -15,6 +15,10 @@ const toTeacher = (r: Row): Teacher => ({
 const toChild = (r: Row): Child => ({
   id: String(r.id), firstName: String(r.first_name ?? ""), lastName: String(r.last_name ?? ""), short: String(r.short ?? ""),
   groupId: (r.group_id as string | null) ?? null, active: r.active !== false, sortOrder: Number(r.sort_order ?? 0),
+});
+const toChildNote = (r: Row): ChildNote => ({
+  id: String(r.id), childId: String(r.child_id), kind: (r.kind as NoteKind) ?? "info", note: String(r.note ?? ""),
+  notedOn: String(r.noted_on), authorId: (r.author_id as string | null) ?? null,
 });
 const toGroup = (r: Row): Group => ({
   id: String(r.id), name: String(r.name), short: String(r.short ?? ""), color: String(r.color),
@@ -134,17 +138,18 @@ export function createSupabaseBackend(client: SupabaseClient, teamId: string): P
   const backend: PlannerBackend = {
     kind: "supabase",
     async load() {
-      const [team, members, teachers, groups, children, templates, weeks, sessions] = await Promise.all([
+      const [team, members, teachers, groups, children, childNotes, templates, weeks, sessions] = await Promise.all([
         client.from("teams").select("id, name, join_code").eq("id", teamId).single(),
         client.from("team_members").select("user_id, display_name, role, teacher_id").eq("team_id", teamId),
         client.from("teachers").select("*").eq("team_id", teamId).order("sort_order").order("created_at"),
         client.from("groups").select("*").eq("team_id", teamId).order("sort_order").order("created_at"),
         client.from("children").select("*").eq("team_id", teamId).order("sort_order").order("last_name").order("first_name"),
+        client.from("child_notes").select("*").eq("team_id", teamId).order("noted_on", { ascending: false }).order("created_at", { ascending: false }),
         client.from("templates").select("*").eq("team_id", teamId).order("sort_order").order("created_at"),
         client.from("weeks").select("week_start, days").eq("team_id", teamId),
         client.from("sessions").select("*").eq("team_id", teamId),
       ]);
-      [team, members, teachers, groups, children, templates, weeks, sessions].forEach(check);
+      [team, members, teachers, groups, children, childNotes, templates, weeks, sessions].forEach(check);
       const teacherList = (teachers.data ?? []).map(toTeacher);
       const weekMap: Record<string, WeekDays> = {};
       for (const w of weeks.data ?? []) weekMap[String(w.week_start)] = normalizeDays(w.days, teacherList);
@@ -155,6 +160,7 @@ export function createSupabaseBackend(client: SupabaseClient, teamId: string): P
         teachers: teacherList,
         groups: (groups.data ?? []).map(toGroup),
         children: (children.data ?? []).map(toChild),
+        childNotes: (childNotes.data ?? []).map(toChildNote),
         templates: (templates.data ?? []).map(toTemplate),
         sessions: (sessions.data ?? []).map(toSession),
         weeks: weekMap,
@@ -204,6 +210,14 @@ export function createSupabaseBackend(client: SupabaseClient, teamId: string): P
           return;
         case "deleteChildren":
           if (op.ids.length) check(await client.from("children").delete().in("id", op.ids));
+          return;
+        case "upsertChildNotes":
+          check(await client.from("child_notes").upsert(op.rows.map((n) => ({
+            id: n.id, team_id: teamId, child_id: n.childId, kind: n.kind, note: n.note.slice(0, 1000), noted_on: n.notedOn, author_id: n.authorId,
+          }))));
+          return;
+        case "deleteChildNotes":
+          if (op.ids.length) check(await client.from("child_notes").delete().in("id", op.ids));
           return;
         case "upsertTeachers":
           check(await client.from("teachers").upsert(op.rows.map((t) => ({

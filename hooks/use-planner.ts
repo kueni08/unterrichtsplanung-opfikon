@@ -10,7 +10,7 @@ import {
   applyChanged, carryForwardTarget, continuationTitle, defaultAssignments, emptyDays,
   findFreeSlot, makeSession, newId, pickFields, reorderSessions, sameContainer, sessionsIn, uniqueInitials, weekFromTemplate,
 } from "@/lib/planner/logic";
-import type { Child, DayKey, DayMeta, Group, Member, PersistOp, PlannerSnapshot, Role, Session, Teacher, Template, Viewer } from "@/lib/planner/types";
+import type { Child, ChildNote, DayKey, DayMeta, Group, Member, NoteKind, PersistOp, PlannerSnapshot, Role, Session, Teacher, Template, Viewer } from "@/lib/planner/types";
 
 export type SaveState = "saved" | "saving" | "error";
 export type Container = { weekStart: string } | { templateId: string };
@@ -391,7 +391,7 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
   const removeChildren = useCallback((ids: string[]) => {
     const snap = get();
     const set = new Set(ids);
-    commitChildren(snap, snap.children.filter((c) => !set.has(c.id)), [{ type: "deleteChildren", ids }]);
+    commitChildren({ ...snap, childNotes: snap.childNotes.filter((n) => !set.has(n.childId)) }, snap.children.filter((c) => !set.has(c.id)), [{ type: "deleteChildren", ids }]);
   }, [commitChildren]);
 
   /** Gruppenzuordnung mehrerer Kinder auf einmal setzen (Checkbox-Auswahl). */
@@ -410,6 +410,26 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     if (!rows.length) return;
     commitChildren(snap, children, [{ type: "upsertChildren", rows }]);
   }, [commitChildren]);
+
+  const addChildNote = useCallback((childId: string, kind: NoteKind, note: string, notedOn: string): string => {
+    const snap = get();
+    const row: ChildNote = { id: newId(), childId, kind, note: note.trim(), notedOn, authorId: viewer.userId };
+    commit({ ...snap, childNotes: [row, ...snap.childNotes] }, [{ type: "upsertChildNotes", rows: [row] }]);
+    return row.id;
+  }, [commit, viewer.userId]);
+
+  const updateChildNote = useCallback((id: string, patch: Partial<Pick<ChildNote, "kind" | "note" | "notedOn">>) => {
+    const snap = get();
+    const row = snap.childNotes.find((n) => n.id === id);
+    if (!row) return;
+    const next = { ...row, ...patch };
+    commit({ ...snap, childNotes: snap.childNotes.map((n) => (n.id === id ? next : n)) }, [{ type: "upsertChildNotes", rows: [next] }]);
+  }, [commit]);
+
+  const removeChildNote = useCallback((id: string) => {
+    const snap = get();
+    commit({ ...snap, childNotes: snap.childNotes.filter((n) => n.id !== id) }, [{ type: "deleteChildNotes", ids: [id] }]);
+  }, [commit]);
 
   const importChildren = useCallback((rows: ImportedRow[]): number => {
     const snap = get();
@@ -496,7 +516,7 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     snapshot, loadError, saveState, onlineUserIds, me, role, isCoordinator: role === "koordination",
     reload, flush,
     updateSession, addSession, removeSession, moveSession, swapSessions, replaceSession, appendSession, carryForward, createWeekFromTemplate, updateDay,
-    addChild, updateChild, removeChildren, assignChildren, importChildren,
+    addChild, updateChild, removeChildren, assignChildren, importChildren, addChildNote, updateChildNote, removeChildNote,
     updateGroup, addGroup, removeGroup, updateTeacher, addTeacher, updateTemplate, renameTeam, updateMember, removeMember,
     regenerateJoinCode, resetDemo: backend.reset ? resetDemo : undefined,
   };

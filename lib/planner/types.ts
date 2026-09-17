@@ -13,6 +13,17 @@ export type Child = {
   active: boolean;
   sortOrder: number;
 };
+export type NoteKind = "plus" | "minus" | "info";
+/** Verhaltensnotiz zu einem Kind (positiv, negativ oder neutrale Beobachtung) */
+export type ChildNote = {
+  id: string;
+  childId: string;
+  kind: NoteKind;
+  note: string;
+  /** ISO-Datum */
+  notedOn: string;
+  authorId: string | null;
+};
 export type Teacher = { id: string; name: string; initials: string; color: string; active: boolean; sortOrder: number };
 export type Assignment = {
   groupId: string;
@@ -79,6 +90,8 @@ export type PlannerSnapshot = {
   groups: Group[];
   /** Kinder-Stammliste (optional; leer bei Teams, die nur Kürzel pflegen) */
   children: Child[];
+  /** Verhaltensnotizen zu Kindern */
+  childNotes: ChildNote[];
   templates: Template[];
   /** Lektionen aller Wochen und Vorlagen */
   sessions: Session[];
@@ -104,6 +117,8 @@ export type PersistOp =
   | { type: "deleteGroup"; id: string }
   | { type: "upsertChildren"; rows: Child[] }
   | { type: "deleteChildren"; ids: string[] }
+  | { type: "upsertChildNotes"; rows: ChildNote[] }
+  | { type: "deleteChildNotes"; ids: string[] }
   | { type: "upsertTeachers"; rows: Teacher[] }
   | { type: "upsertTemplates"; rows: Template[] }
   | { type: "updateTeam"; name: string }

@@ -80,6 +80,12 @@ Der Tagesfokus (auch per Klick auf einen Tageskopf im Wochenplan) zeigt den Tag 
 
 Der Reiter „Hausaufgaben“ zeigt je Fach die zuletzt verteilte Hausaufgabe mit Datum und Gruppen; „frühere“ klappt die älteren auf. Ein Klick öffnet die zugehörige Lektion. Die Liste entsteht automatisch aus dem Feld „Hausaufgaben“ der Lektionen.
 
+## Kinder (Verhaltensnotizen und Dossier)
+
+Der Reiter „Kinder“ zeigt die Stammliste mit Suche. Oben lässt sich ein Eintrag erfassen: Kind wählen (Name eintippen, z. B. „pa“), Art **Positiv**, **Ermahnung** oder **Notiz**, Datum und Beobachtung. Ein Klick auf ein Kind öffnet sein Dossier mit allen Einträgen (neueste zuoberst), Zählern für positive Einträge und Ermahnungen sowie der erfassenden Person. Einträge erfassen dürfen alle im Team; ändern oder löschen kann die erfassende Person oder die Koordination.
+
+Bitte sachlich und konkret formulieren (was ist vorgefallen, was wurde vereinbart) – keine Diagnosen oder Wertungen der Person. Die Einträge sind nur für angemeldete Teammitglieder sichtbar.
+
 ## Drucken
 
 Der Wochenplan lässt sich über „Drucken“ für Ablage oder Aushang ausdrucken (A4 quer, in der Regel zwei Seiten). Gedruckt wird die gewählte Ansicht – für den Aushang vorher auf „Gesamtansicht“ wechseln.
