@@ -2,15 +2,19 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { PlannerBackend } from "./backend.ts";
 import { makeSession, normalizeDays } from "./logic.ts";
-import type { Assignment, DayKey, Group, Member, PersistOp, PlannerSnapshot, Role, Session, SessionStatus, Teacher, Template, WeekDays } from "./types.ts";
+import type { Assignment, Child, DayKey, Group, Member, PersistOp, PlannerSnapshot, Role, Session, SessionStatus, Teacher, Template, WeekDays } from "./types.ts";
 
 type Row = Record<string, unknown>;
 
-const TABLES = ["teams", "team_members", "teachers", "groups", "templates", "weeks", "sessions"] as const;
+const TABLES = ["teams", "team_members", "teachers", "groups", "children", "templates", "weeks", "sessions"] as const;
 
 const toTeacher = (r: Row): Teacher => ({
   id: String(r.id), name: String(r.name), initials: String(r.initials), color: String(r.color),
   active: Boolean(r.active), sortOrder: Number(r.sort_order ?? 0),
+});
+const toChild = (r: Row): Child => ({
+  id: String(r.id), firstName: String(r.first_name ?? ""), lastName: String(r.last_name ?? ""), short: String(r.short ?? ""),
+  groupId: (r.group_id as string | null) ?? null, active: r.active !== false, sortOrder: Number(r.sort_order ?? 0),
 });
 const toGroup = (r: Row): Group => ({
   id: String(r.id), name: String(r.name), short: String(r.short ?? ""), color: String(r.color),
@@ -130,16 +134,17 @@ export function createSupabaseBackend(client: SupabaseClient, teamId: string): P
   const backend: PlannerBackend = {
     kind: "supabase",
     async load() {
-      const [team, members, teachers, groups, templates, weeks, sessions] = await Promise.all([
+      const [team, members, teachers, groups, children, templates, weeks, sessions] = await Promise.all([
         client.from("teams").select("id, name, join_code").eq("id", teamId).single(),
         client.from("team_members").select("user_id, display_name, role, teacher_id").eq("team_id", teamId),
         client.from("teachers").select("*").eq("team_id", teamId).order("sort_order").order("created_at"),
         client.from("groups").select("*").eq("team_id", teamId).order("sort_order").order("created_at"),
+        client.from("children").select("*").eq("team_id", teamId).order("sort_order").order("last_name").order("first_name"),
         client.from("templates").select("*").eq("team_id", teamId).order("sort_order").order("created_at"),
         client.from("weeks").select("week_start, days").eq("team_id", teamId),
         client.from("sessions").select("*").eq("team_id", teamId),
       ]);
-      [team, members, teachers, groups, templates, weeks, sessions].forEach(check);
+      [team, members, teachers, groups, children, templates, weeks, sessions].forEach(check);
       const teacherList = (teachers.data ?? []).map(toTeacher);
       const weekMap: Record<string, WeekDays> = {};
       for (const w of weeks.data ?? []) weekMap[String(w.week_start)] = normalizeDays(w.days, teacherList);
@@ -149,6 +154,7 @@ export function createSupabaseBackend(client: SupabaseClient, teamId: string): P
         members: (members.data ?? []).map(toMember),
         teachers: teacherList,
         groups: (groups.data ?? []).map(toGroup),
+        children: (children.data ?? []).map(toChild),
         templates: (templates.data ?? []).map(toTemplate),
         sessions: (sessions.data ?? []).map(toSession),
         weeks: weekMap,
@@ -189,6 +195,15 @@ export function createSupabaseBackend(client: SupabaseClient, teamId: string): P
           return;
         case "deleteGroup":
           check(await client.from("groups").delete().eq("id", op.id));
+          return;
+        case "upsertChildren":
+          check(await client.from("children").upsert(op.rows.map((c) => ({
+            id: c.id, team_id: teamId, first_name: c.firstName.slice(0, 80), last_name: c.lastName.slice(0, 80), short: c.short.slice(0, 6) || "?",
+            group_id: c.groupId, active: c.active, sort_order: c.sortOrder,
+          }))));
+          return;
+        case "deleteChildren":
+          if (op.ids.length) check(await client.from("children").delete().in("id", op.ids));
           return;
         case "upsertTeachers":
           check(await client.from("teachers").upsert(op.rows.map((t) => ({

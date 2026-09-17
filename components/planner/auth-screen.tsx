@@ -131,7 +131,7 @@ export function AuthScreen({ supabase, onDemoSelect, initialError }: { supabase:
           </div>
         )}
 
-        <div className="privacy-note"><CircleAlert /><p><strong>Datenschutz:</strong> Kinder erscheinen nur als Kürzel.</p></div>
+        <div className="privacy-note"><CircleAlert /><p><strong>Datenschutz:</strong> Im Wochenplan erscheinen Kinder nur als Kürzel.</p></div>
       </section>
     </main>
   );

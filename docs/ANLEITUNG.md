@@ -91,7 +91,8 @@ Im Admin-Bereich verwaltet die Koordination die Stammdaten des Teams:
 - **Rollen** von Mitgliedern anpassen (Koordination / Lehrperson) – ein Team braucht immer mindestens eine Koordinationsperson.
 - **Lehrperson verknüpfen**: Ein Teammitglied mit einem bestehenden Lehrpersonen-Eintrag verbinden.
 - **Mitglieder entfernen**, die das Team verlassen haben.
-- **Gruppen & Kürzel**: Klassen/Gruppen anlegen, benennen, farblich kennzeichnen und die Kinderkürzel pflegen.
+- **Kinder** (Stammliste): Kinder mit Vor- und Nachname erfassen – einzeln oder per Import aus Excel/CSV (Spalten „Vorname“, „Nachname“, optional „Klasse“; vorhandene Namen werden übersprungen). Das Kürzel entsteht aus den Anfangsbuchstaben und ist per Stift-Symbol anpassbar; dort lassen sich Kinder auch entfernen.
+- **Gruppen**: Klassen/Gruppen anlegen, benennen und farblich kennzeichnen. „Kinder auswählen“ öffnet die Stammliste mit Checkboxen – angehakte Kinder gehören zur Gruppe, ein Kind kann nur in einer Gruppe sein (Anhaken verschiebt es). Zugeordnete Kinder erscheinen als Chips und lassen sich per × wieder entfernen. Solange die Stammliste leer ist, gilt das Kürzel-Textfeld der Gruppe.
 - **Namen & Kürzel der Lehrpersonen**: Im Admin stehen die vollständigen Namen („Vorname Nachname“). Das Kürzel für den Wochenplan entsteht automatisch aus den Anfangsbuchstaben von Vor- und Nachname (Andrea Muster → AM), ist im Team eindeutig (bei Kollision z. B. AMu) und lässt sich im Feld neben dem Namen von Hand anpassen. Tritt eine Person mit ihrem vollständigen Namen bei, übernimmt sie ein per Vorname vorbereitetes Profil (z. B. „Andrea“) samt neuem Kürzel.
 - **Lehrpersonen ohne Konto**: Lehrpersonen erfassen, die (noch) kein eigenes Login haben, damit sie trotzdem in der Planung erscheinen und Lektionen zugewiesen bekommen können. Lehrpersonen werden nicht gelöscht, sondern über das Häkchen deaktiviert.
 - **Vorlagen bearbeiten**: Name, Bausteine (Klick auf ein Feld im Mini-Raster), Standard-Anwesenheit und Tagesnotiz pro Wochentag der bestehenden Vorlagen pflegen. Änderungen gelten für künftig angelegte Wochen, nicht für bereits bestehende. Neue Vorlagen lassen sich derzeit nicht anlegen.
@@ -118,7 +119,8 @@ Die Anwendung lässt sich ohne Konto und ohne Internetverbindung zum Server im D
 
 ## Datenschutz-Regeln
 
-- Kinder werden in der Planung **ausschliesslich mit Kürzeln** erfasst (z. B. A01, B03) – nie mit vollständigen Namen.
+- Die Koordination führt im Admin-Bereich eine **Kinder-Stammliste** mit Vor- und Nachnamen (nur für angemeldete Teammitglieder sichtbar). Im Wochenplan, in Notizen und in der Kinderzuordnung erscheinen Kinder **nur mit ihrem Kürzel** (z. B. AM).
+- Teams ohne Stammliste können in den Gruppen weiterhin reine Kürzel (z. B. A01, B03) pflegen.
 - Es dürfen **keine Diagnosen, Fördermassnahmen oder anderen sensiblen persönlichen Angaben** in Notiz- oder Freitextfeldern erfasst werden.
 - Die Daten werden auf einer Supabase-Infrastruktur in **Zürich** gespeichert.
 

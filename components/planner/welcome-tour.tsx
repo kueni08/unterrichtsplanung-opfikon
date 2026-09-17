@@ -35,7 +35,7 @@ function stepsFor(role: Role, joinCode: string): Step[] {
     },
     role === "koordination"
       ? { title: "Team einladen", body: `Teile den Beitrittscode ${joinCode} mit deinem Team – im Admin-Bereich unter „Team“ findest du ihn jederzeit wieder und kannst bei Bedarf einen neuen erzeugen.` }
-      : { title: "Gemeinsam planen", body: "Änderungen erscheinen in Echtzeit bei allen im Team. Kinder erfasst ihr immer nur mit Kürzel – nie mit vollständigen Namen oder Diagnosen." },
+      : { title: "Gemeinsam planen", body: "Änderungen erscheinen in Echtzeit bei allen im Team. Im Wochenplan erscheinen Kinder nur mit Kürzel; Diagnosen oder private Details gehören nicht in Notizfelder." },
   ];
 }
 

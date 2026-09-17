@@ -3,6 +3,7 @@
 import { Fragment, useState } from "react";
 import { CalendarDays, Check, CircleAlert, Copy, Download, Plus, RefreshCw, RotateCcw, Trash2, Users } from "lucide-react";
 
+import { ChildrenCard, GroupChildrenPicker } from "@/components/planner/children-admin";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -82,8 +83,66 @@ export function AdminView({ api, snapshot, mode, selectedTemplateId, onSelectTem
         </div>
       </div>
       <section className="admin-grid">
+        <article className="admin-card template-card">
+          <div className="card-heading"><span className="icon-box blue"><CalendarDays /></span><div><h3>Wochenvorlage</h3><p>Ausgangslage für neue Wochen</p></div></div>
+          <Select value={selectedTemplateId} onValueChange={onSelectTemplate}>
+            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent>{snapshot.templates.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+          </Select>
+          {selectedTemplate && (
+            <div className="field-stack template-name-field">
+              <label htmlFor="template-name-input">Name der Vorlage</label>
+              <Input id="template-name-input" value={selectedTemplate.name} onChange={(e) => api.updateTemplate(selectedTemplate.id, { name: e.target.value })} />
+            </div>
+          )}
+          <MiniTemplate sessions={sessionsIn(snapshot.sessions, { templateId: selectedTemplateId })} groups={snapshot.groups} teachers={snapshot.teachers} onOpen={openTemplateCell} />
+          <p className="admin-hint">Auf einen Block klicken, um Inhalt, Raum und Zuständigkeiten zu ändern.</p>
+          {selectedTemplate && (
+            <TemplateAttendance
+              template={selectedTemplate}
+              teachers={snapshot.teachers}
+              onChange={(days) => api.updateTemplate(selectedTemplate.id, { days })}
+            />
+          )}
+        </article>
+
+        <div className="admin-column">
+          <ChildrenCard api={api} kids={snapshot.children} groups={snapshot.groups} />
+        <article className="admin-card groups-card">
+          <div className="card-heading"><span className="icon-box coral"><Users /></span><div><h3>Kindergruppen</h3><p>Bezeichnung, Farbe und Kinder aus der Stammliste</p></div></div>
+          <div className="settings-list">
+            {snapshot.groups.map((group, index) => (
+              <div className="group-setting" key={group.id}>
+                <div className="group-setting-top">
+                  <span className="group-number" style={{ background: tint(group.color, "32"), color: group.color }}>{index + 1}</span>
+                  <Input value={group.name} onChange={(e) => api.updateGroup(group.id, { name: e.target.value, short: e.target.value.replace("Klasse", "Kl.") })} aria-label={`Name Gruppe ${index + 1}`} />
+                </div>
+                <div className="color-row">
+                  {GROUP_PALETTE.map((color) => (
+                    <button type="button" key={color} className={group.color === color ? "color-dot selected" : "color-dot"} style={{ background: color }} onClick={() => api.updateGroup(group.id, { color })} aria-label={`Farbe ${color}`} />
+                  ))}
+                </div>
+                {snapshot.children.length > 0
+                  ? <GroupChildrenPicker api={api} group={group} kids={snapshot.children} groups={snapshot.groups} />
+                  : (
+                    <>
+                      <Textarea value={group.children} onChange={(e) => api.updateGroup(group.id, { children: e.target.value })} rows={2} aria-label={`Kürzel in ${group.name}`} placeholder="A01, A02, A03 …" />
+                      <small className="privacy-helper">Kürzel der Kinder – oder die Kinder mit Namen in der Stammliste erfassen und hier auswählen.</small>
+                    </>
+                  )}
+                <Button type="button" variant={groupRemoveId === group.id ? "destructive" : "ghost"} size="sm" className="group-remove-button" onClick={() => handleRemoveGroup(group.id)}>
+                  <Trash2 size={13} /> {groupRemoveId === group.id ? "Wirklich entfernen?" : "Gruppe entfernen"}
+                </Button>
+              </div>
+            ))}
+            <Button variant="outline" className="w-full" onClick={() => api.addGroup()}><Plus /> Gruppe hinzufügen</Button>
+          </div>
+        </article>
+        </div>
+
+        <div className="admin-column">
         <article className="admin-card team-card">
-          <div className="card-heading"><span className="icon-box blue"><Users /></span><div><h3>Team</h3><p>Name, Beitrittscode und Mitglieder</p></div></div>
+          <div className="card-heading"><span className="icon-box blue"><Users /></span><div><h3>Team</h3><p>Name, Code, Mitglieder</p></div></div>
           <div className="field-stack"><label htmlFor="team-name-input">Teamname</label><Input id="team-name-input" value={snapshot.team.name} onChange={(e) => api.renameTeam(e.target.value)} disabled={mode === "demo"} /></div>
           <div className="join-code-block">
             <span className="join-code-label">Beitrittscode</span>
@@ -117,56 +176,7 @@ export function AdminView({ api, snapshot, mode, selectedTemplateId, onSelectTem
             ))}
           </div>
         </article>
-
-        <article className="admin-card template-card">
-          <div className="card-heading"><span className="icon-box blue"><CalendarDays /></span><div><h3>Wochenvorlage</h3><p>Ausgangslage für neue Wochen</p></div></div>
-          <Select value={selectedTemplateId} onValueChange={onSelectTemplate}>
-            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-            <SelectContent>{snapshot.templates.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
-          </Select>
-          {selectedTemplate && (
-            <div className="field-stack template-name-field">
-              <label htmlFor="template-name-input">Name der Vorlage</label>
-              <Input id="template-name-input" value={selectedTemplate.name} onChange={(e) => api.updateTemplate(selectedTemplate.id, { name: e.target.value })} />
-            </div>
-          )}
-          <MiniTemplate sessions={sessionsIn(snapshot.sessions, { templateId: selectedTemplateId })} groups={snapshot.groups} teachers={snapshot.teachers} onOpen={openTemplateCell} />
-          <p className="admin-hint">Auf einen Block klicken, um Inhalt, Raum und Zuständigkeiten zu ändern.</p>
-          {selectedTemplate && (
-            <TemplateAttendance
-              template={selectedTemplate}
-              teachers={snapshot.teachers}
-              onChange={(days) => api.updateTemplate(selectedTemplate.id, { days })}
-            />
-          )}
-        </article>
-
-        <article className="admin-card groups-card">
-          <div className="card-heading"><span className="icon-box coral"><Users /></span><div><h3>Kindergruppen</h3><p>Bezeichnung, Farbe und Zuordnung</p></div></div>
-          <div className="settings-list">
-            {snapshot.groups.map((group, index) => (
-              <div className="group-setting" key={group.id}>
-                <div className="group-setting-top">
-                  <span className="group-number" style={{ background: tint(group.color, "32"), color: group.color }}>{index + 1}</span>
-                  <Input value={group.name} onChange={(e) => api.updateGroup(group.id, { name: e.target.value, short: e.target.value.replace("Klasse", "Kl.") })} aria-label={`Name Gruppe ${index + 1}`} />
-                </div>
-                <div className="color-row">
-                  {GROUP_PALETTE.map((color) => (
-                    <button type="button" key={color} className={group.color === color ? "color-dot selected" : "color-dot"} style={{ background: color }} onClick={() => api.updateGroup(group.id, { color })} aria-label={`Farbe ${color}`} />
-                  ))}
-                </div>
-                <Textarea value={group.children} onChange={(e) => api.updateGroup(group.id, { children: e.target.value })} rows={2} aria-label={`Kürzel in ${group.name}`} placeholder="A01, A02, A03 …" />
-                <small className="privacy-helper">Nur Kürzel verwenden, z. B. A01, A02. Keine vollständigen Namen.</small>
-                <Button type="button" variant={groupRemoveId === group.id ? "destructive" : "ghost"} size="sm" className="group-remove-button" onClick={() => handleRemoveGroup(group.id)}>
-                  <Trash2 size={13} /> {groupRemoveId === group.id ? "Wirklich entfernen?" : "Gruppe entfernen"}
-                </Button>
-              </div>
-            ))}
-            <Button variant="outline" className="w-full" onClick={() => api.addGroup()}><Plus /> Gruppe hinzufügen</Button>
-          </div>
-        </article>
-
-        <article className="admin-card team-card">
+        <article className="admin-card teachers-card">
           <div className="card-heading"><span className="icon-box mint"><Users /></span><div><h3>Lehrpersonen</h3><p>Vollständige Namen; das Kürzel für den Wochenplan entsteht aus den Anfangsbuchstaben und lässt sich anpassen</p></div></div>
           <div className="settings-list">
             {snapshot.teachers.map((teacher) => (
@@ -179,6 +189,7 @@ export function AdminView({ api, snapshot, mode, selectedTemplateId, onSelectTem
           </div>
           <div className="privacy-note"><CircleAlert /><p><strong>Hinweis:</strong> Lehrpersonen ohne Konto erscheinen im Wochenplan, können sich aber nicht selbst anmelden.</p></div>
         </article>
+        </div>
       </section>
     </>
   );
