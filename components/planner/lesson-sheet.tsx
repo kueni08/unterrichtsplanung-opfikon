@@ -23,13 +23,15 @@ const STATUS_OPTIONS: { value: SessionStatus; label: string }[] = [
   { value: "done", label: "Erledigt" },
 ];
 
-export function LessonSheet({ session, api, snapshot, isCoordinator, templateId, onOpenChange }: {
+export function LessonSheet({ session, api, snapshot, isCoordinator, templateId, onRequestMove, onOpenChange }: {
   session: Session | null;
   api: PlannerApi;
   snapshot: PlannerSnapshot;
   isCoordinator: boolean;
   /** Vorlage für eine Folgewoche, die beim Übertragen neu angelegt werden muss */
   templateId?: string;
+  /** Verschieben läuft über die App, damit bei belegtem Ziel nachgefragt wird */
+  onRequestMove?: (sessionId: string, day: DayKey, slot: number) => void;
   onOpenChange: (open: boolean) => void;
 }) {
   const [confirmRemove, setConfirmRemove] = useState(false);
@@ -72,7 +74,8 @@ export function LessonSheet({ session, api, snapshot, isCoordinator, templateId,
 
   function handleMove() {
     if (readOnly) return;
-    api.moveSession(session!.id, moveDay, moveSlot);
+    if (onRequestMove) onRequestMove(session!.id, moveDay, moveSlot);
+    else api.moveSession(session!.id, moveDay, moveSlot);
   }
 
   function handleRemove() {
