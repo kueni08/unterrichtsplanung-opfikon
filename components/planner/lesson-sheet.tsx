@@ -10,11 +10,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { SuggestInput, type Suggestion } from "@/components/ui/suggest-input";
 import { Textarea } from "@/components/ui/textarea";
+import { fullName } from "@/lib/planner/children";
 import { DAYS, SLOTS, isMeetingSlot, slotKind, tint } from "@/lib/planner/constants";
 import { addDays, parseIsoDate, isoDate } from "@/lib/planner/dates";
 import { buildIcs, icsFileName, inviteBody, inviteDetails, mailtoLink } from "@/lib/planner/invite";
-import { countChildren, deriveTitle, meetingParticipants, mergeCandidates, setAssignment, setParticipants } from "@/lib/planner/logic";
+import { countChildren, deriveTitle, meetingParticipants, mergeCandidates, roomSuggestions, setAssignment, setParticipants, subjectSuggestions } from "@/lib/planner/logic";
 import type { PlannerApi } from "@/hooks/use-planner";
 import type { Assignment, DayKey, PlannerSnapshot, Session, SessionStatus } from "@/lib/planner/types";
 
@@ -39,6 +41,7 @@ export function LessonSheet({ session, api, snapshot, isCoordinator, templateId,
 }) {
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [inviteTo, setInviteTo] = useState("");
+  const [childSearch, setChildSearch] = useState("");
   const [moveDay, setMoveDay] = useState<DayKey>(session?.day ?? "mo");
   const [moveSlot, setMoveSlot] = useState<number>(session?.slot ?? 0);
 
@@ -52,6 +55,11 @@ export function LessonSheet({ session, api, snapshot, isCoordinator, templateId,
   const isMeeting = isMeetingSlot(session.slot);
   const participants = meetingParticipants(session);
   const invite = isMeeting ? inviteDetails(session, snapshot.teachers) : null;
+  const subjectOptions: Suggestion[] = subjectSuggestions(snapshot.sessions).map((value) => ({ value }));
+  const roomOptions: Suggestion[] = roomSuggestions(snapshot.sessions).map((value) => ({ value }));
+  const childOptions: Suggestion[] = snapshot.children
+    .filter((c) => c.active)
+    .map((c) => ({ value: c.short, label: `${c.lastName} ${c.firstName}`, hint: `${c.short}${snapshot.groups.find((g) => g.id === c.groupId)?.short ? ` · ${snapshot.groups.find((g) => g.id === c.groupId)?.short}` : ""}` }));
 
   function patch(p: Partial<Session>) {
     if (readOnly) return;
@@ -125,7 +133,9 @@ export function LessonSheet({ session, api, snapshot, isCoordinator, templateId,
         </SheetHeader>
         <div className="sheet-body">
           {readOnly && <div className="template-readonly-note"><CircleAlert size={15} /> Vorlagen pflegt die Koordination.</div>}
-          <div className="field-stack"><Label htmlFor="title">{isMeeting ? "Titel" : "Titel / Fach"}</Label><Input id="title" disabled={readOnly} value={session.title} onChange={(e) => patch({ title: e.target.value })} placeholder={isMeeting ? "z. B. Stufensitzung, Elterngespräch A04" : undefined} /></div>
+          <div className="field-stack"><Label htmlFor="title">{isMeeting ? "Titel" : "Titel / Fach"}</Label>{isMeeting
+            ? <Input id="title" disabled={readOnly} value={session.title} onChange={(e) => patch({ title: e.target.value })} placeholder="z. B. Stufensitzung, Elterngespräch A04" />
+            : <SuggestInput id="title" disabled={readOnly} value={session.title} onChange={(value) => patch({ title: value })} suggestions={subjectOptions} placeholder="Fach wählen oder eingeben" />}</div>
           <div className="field-stack"><Label htmlFor="focus">Stichworte für die Übersicht</Label><Input id="focus" disabled={readOnly} value={session.focus} onChange={(e) => patch({ focus: e.target.value })} placeholder="z. B. Einführung · Üben · Reflexion" /></div>
           {isMeeting ? (
             <>
@@ -147,7 +157,7 @@ export function LessonSheet({ session, api, snapshot, isCoordinator, templateId,
           ) : (
             <>
           <div className="two-fields">
-            <div className="field-stack"><Label htmlFor="room">Raum</Label><Input id="room" disabled={readOnly} value={session.room} onChange={(e) => patch({ room: e.target.value })} /></div>
+            <div className="field-stack"><Label htmlFor="room">Raum</Label><SuggestInput id="room" disabled={readOnly} value={session.room} onChange={(value) => patch({ room: value })} suggestions={roomOptions} /></div>
             <label className="whole-class">
               <Checkbox disabled={readOnly} checked={session.wholeClass} onCheckedChange={(checked) => patch({ wholeClass: checked === true })} />
               <span><strong>Alle {countChildren(snapshot.groups)} Kinder</strong><small>Teamteaching ohne Gruppentrennung</small></span>
@@ -201,8 +211,8 @@ export function LessonSheet({ session, api, snapshot, isCoordinator, templateId,
                             {activeTeachers.map((teacher) => <SelectItem key={teacher.id} value={teacher.id}>{teacher.initials} · {teacher.name}</SelectItem>)}
                           </SelectContent>
                         </Select>
-                        <Input disabled={readOnly} value={assignment?.subject ?? ""} placeholder={session.title} aria-label={`Fach ${group.name}`} onChange={(e) => handleSubjectChange(group.id, e.target.value)} />
-                        <Input disabled={readOnly} value={assignment?.room ?? ""} placeholder={session.room} aria-label={`Raum ${group.name}`} onChange={(e) => patchAssignment(group.id, { room: e.target.value })} />
+                        <SuggestInput disabled={readOnly} value={assignment?.subject ?? ""} placeholder={session.title} aria-label={`Fach ${group.name}`} onChange={(value) => handleSubjectChange(group.id, value)} suggestions={subjectOptions} />
+                        <SuggestInput disabled={readOnly} value={assignment?.room ?? ""} placeholder={session.room} aria-label={`Raum ${group.name}`} onChange={(value) => patchAssignment(group.id, { room: value })} suggestions={roomOptions} />
                       </div>
                     )}
                   </div>
@@ -212,7 +222,28 @@ export function LessonSheet({ session, api, snapshot, isCoordinator, templateId,
           </div>
             </>
           )}
-          {!isMeeting && <div className="field-stack"><Label htmlFor="children">Abweichende Kinderzuordnung</Label><Textarea id="children" disabled={readOnly} value={session.children} onChange={(e) => patch({ children: e.target.value })} placeholder="Nur Kürzel, z. B. A04 heute in Gruppe 2" rows={3} /></div>}
+          {!isMeeting && (
+            <div className="field-stack">
+              <Label htmlFor="children">Abweichende Kinderzuordnung</Label>
+              {childOptions.length > 0 && (
+                <SuggestInput
+                  value={childSearch}
+                  onChange={setChildSearch}
+                  suggestions={childOptions}
+                  placeholder="Kind suchen (z. B. „pa“ für Patrick, Pascal) …"
+                  aria-label="Kind suchen"
+                  disabled={readOnly}
+                  onPick={(s) => {
+                    const child = snapshot.children.find((c) => c.short === s.value);
+                    const text = session!.children.trim();
+                    patch({ children: `${text ? `${text}\n` : ""}${s.value}${child ? ` (${fullName(child).split(" ")[0]})` : ""}: ` });
+                    setChildSearch("");
+                  }}
+                />
+              )}
+              <Textarea id="children" disabled={readOnly} value={session.children} onChange={(e) => patch({ children: e.target.value })} placeholder="Nur Kürzel, z. B. A04 heute in Gruppe 2" rows={3} />
+            </div>
+          )}
           {!isMeeting && kind === "week" && <LessonHistory all={snapshot.sessions} current={session} onOpen={onOpenSession} />}
           <div className="field-stack"><Label htmlFor="notes">{isMeeting ? "Traktanden & Notizen" : "Notizen & Material"}</Label><Textarea id="notes" disabled={readOnly} value={session.notes} onChange={(e) => patch({ notes: e.target.value })} placeholder={isMeeting ? "Traktanden, Vorbereitung, Beschlüsse …" : "Aufträge, Material, Beobachtungen, Links …"} rows={5} /></div>
           {!isMeeting && kind === "week" && (

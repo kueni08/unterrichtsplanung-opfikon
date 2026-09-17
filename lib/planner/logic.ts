@@ -1,4 +1,4 @@
-import { DAYS, SLOTS, isMeetingSlot, slotKind, slotsOfKind, type SlotKind } from "./constants.ts";
+import { DAYS, SLOTS, SUBJECT_PRESETS, isMeetingSlot, slotKind, slotsOfKind, type SlotKind } from "./constants.ts";
 import type { Assignment, DayKey, DayMeta, Group, Session, Teacher, Template, WeekDays } from "./types.ts";
 
 export const newId = (): string => globalThis.crypto.randomUUID();
@@ -268,6 +268,29 @@ export function cloneTemplateToWeek(templateSessions: Session[], weekStart: stri
   return templateSessions.map((s) => ({
     ...s, id: newId(), weekStart, templateId: null, status: "planned", notes: s.notes, homework: "", nextTime: "", assignments: s.assignments.map((a) => ({ ...a })),
   }));
+}
+
+/** Fächer zur Auswahl: Vorgaben plus alles, was im Team schon verwendet wird (nach Häufigkeit). */
+export function subjectSuggestions(sessions: Session[]): string[] {
+  const count = new Map<string, number>();
+  for (const s of sessions) {
+    if (isMeetingSlot(s.slot)) continue;
+    for (const subject of subjectsOf(s)) count.set(subject, (count.get(subject) ?? 0) + 1);
+  }
+  const used = [...count.entries()].sort((a, b) => b[1] - a[1]).map(([subject]) => subject);
+  return [...new Set([...used, ...SUBJECT_PRESETS])];
+}
+
+/** Räume zur Auswahl: alles, was im Team schon verwendet wird. */
+export function roomSuggestions(sessions: Session[]): string[] {
+  const count = new Map<string, number>();
+  for (const s of sessions) {
+    for (const room of [s.room, ...s.assignments.map((a) => a.room ?? "")]) {
+      const r = room.trim();
+      if (r) count.set(r, (count.get(r) ?? 0) + 1);
+    }
+  }
+  return [...count.entries()].sort((a, b) => b[1] - a[1]).map(([room]) => room);
 }
 
 // ---------------------------------------------------------------------------
