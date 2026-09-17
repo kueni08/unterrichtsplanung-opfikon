@@ -86,6 +86,7 @@ Im Admin-Bereich verwaltet die Koordination die Stammdaten des Teams:
 - **Lehrperson verknüpfen**: Ein Teammitglied mit einem bestehenden Lehrpersonen-Eintrag verbinden.
 - **Mitglieder entfernen**, die das Team verlassen haben.
 - **Gruppen & Kürzel**: Klassen/Gruppen anlegen, benennen, farblich kennzeichnen und die Kinderkürzel pflegen.
+- **Namen & Kürzel der Lehrpersonen**: Im Admin stehen die vollständigen Namen („Vorname Nachname“). Das Kürzel für den Wochenplan entsteht automatisch aus den Anfangsbuchstaben von Vor- und Nachname (Andrea Muster → AM), ist im Team eindeutig (bei Kollision z. B. AMu) und lässt sich im Feld neben dem Namen von Hand anpassen. Tritt eine Person mit ihrem vollständigen Namen bei, übernimmt sie ein per Vorname vorbereitetes Profil (z. B. „Andrea“) samt neuem Kürzel.
 - **Lehrpersonen ohne Konto**: Lehrpersonen erfassen, die (noch) kein eigenes Login haben, damit sie trotzdem in der Planung erscheinen und Lektionen zugewiesen bekommen können. Lehrpersonen werden nicht gelöscht, sondern über das Häkchen deaktiviert.
 - **Vorlagen bearbeiten**: Name, Bausteine (Klick auf ein Feld im Mini-Raster), Standard-Anwesenheit und Tagesnotiz pro Wochentag der bestehenden Vorlagen pflegen. Änderungen gelten für künftig angelegte Wochen, nicht für bereits bestehende. Neue Vorlagen lassen sich derzeit nicht anlegen.
 - **Beitrittscode** kopieren oder neu erzeugen (der alte Code wird damit ungültig).

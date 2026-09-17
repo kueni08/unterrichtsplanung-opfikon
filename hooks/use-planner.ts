@@ -7,7 +7,7 @@ import type { PlannerBackend } from "@/lib/planner/backend";
 import { DAYS, SLOTS, TEACHER_PALETTE, GROUP_PALETTE, isMeetingSlot } from "@/lib/planner/constants";
 import {
   applyChanged, carryForwardTarget, continuationTitle, defaultAssignments, emptyDays,
-  findFreeSlot, initialsFrom, makeSession, newId, pickFields, reorderSessions, sessionsIn, weekFromTemplate,
+  findFreeSlot, makeSession, newId, pickFields, reorderSessions, sessionsIn, uniqueInitials, weekFromTemplate,
 } from "@/lib/planner/logic";
 import type { DayKey, DayMeta, Group, Member, PersistOp, PlannerSnapshot, Role, Session, Teacher, Template, Viewer } from "@/lib/planner/types";
 
@@ -312,7 +312,10 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
       teachers: snap.teachers.map((t) => {
         if (t.id !== id) return t;
         const next = { ...t, ...patch };
-        if (patch.name !== undefined && patch.initials === undefined && t.initials === initialsFrom(t.name)) next.initials = initialsFrom(patch.name);
+        const others = snap.teachers.filter((x) => x.id !== id).map((x) => x.initials);
+        // Kürzel folgt dem Namen, solange es nicht von Hand gesetzt wurde
+        if (patch.name !== undefined && patch.initials === undefined && t.initials === uniqueInitials(t.name, others)) next.initials = uniqueInitials(patch.name, others);
+        if (patch.initials !== undefined) next.initials = patch.initials.trim().slice(0, 4);
         return next;
       }),
     });
@@ -324,7 +327,7 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
 
   const addTeacher = useCallback((name = "Neue Lehrperson") => {
     const snap = get();
-    const teacher: Teacher = { id: newId(), name, initials: initialsFrom(name), color: TEACHER_PALETTE[snap.teachers.length % TEACHER_PALETTE.length], active: true, sortOrder: snap.teachers.length };
+    const teacher: Teacher = { id: newId(), name, initials: uniqueInitials(name, snap.teachers.map((t) => t.initials)), color: TEACHER_PALETTE[snap.teachers.length % TEACHER_PALETTE.length], active: true, sortOrder: snap.teachers.length };
     commit({ ...snap, teachers: [...snap.teachers, teacher] }, [{ type: "upsertTeachers", rows: [teacher] }]);
     return teacher.id;
   }, [commit]);
