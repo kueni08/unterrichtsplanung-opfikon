@@ -10,6 +10,7 @@ Digitale Wochenplanung für altersdurchmischte Klassen und Teamteaching an der S
 - **Admin-Bereich** – Teamname, Beitrittscode, Rollen, Gruppen mit Kürzeln, Lehrpersonen (auch ohne eigenes Konto) und Vorlagen verwalten sowie einen JSON-Export als Backup erstellen (ein Import ist nicht vorgesehen).
 - **Realtime-Zusammenarbeit** – Änderungen erscheinen sofort bei allen Teammitgliedern, inklusive Anzeige, wer gerade online ist.
 - **Rollen** – *Koordination* verwaltet Team, Stammdaten und Vorlagen; *Lehrperson* plant im Team mit (Wochen, Lektionen, Tagesfokus) und sieht Vorlagen nur lesend. Die persönliche Ansicht zeigt die eigenen Lektionen vollständig, fremde nur abgeschwächt mit Titel.
+- **Als App installierbar (PWA)** – Wochenatelier lässt sich auf Handy, Tablet und Computer zum Home-Bildschirm hinzufügen und startet dann wie eine App. Die App-Hülle wird offline vorgehalten; die Plandaten brauchen weiterhin eine Internetverbindung.
 - **Demo-Modus** – die Anwendung lässt sich ohne Konto und ohne Server mit Beispieldaten ausprobieren (Daten bleiben nur im Browser).
 - **Datenschutz** – Kinder werden ausschliesslich mit Kürzeln erfasst (z. B. A01), nie mit Namen oder weiteren Angaben.
 
@@ -51,9 +52,11 @@ npm run test:db     # RLS-/Datenbanktests gegen eine temporäre lokale PostgreSQ
 ## Projektstruktur
 
 ```
-app/                     Next.js App Router (Seiten, Layout)
+app/                     Next.js App Router (Seiten, Layout, Web-App-Manifest)
 components/planner/      UI-Komponenten der Wochenplanung
 components/ui/           Wiederverwendbare UI-Bausteine (shadcn)
+public/sw.js             Service Worker (Offline-Hülle, Update-Hinweis)
+public/icons/            App-Icons für Home-Bildschirm und Installation
 hooks/use-planner.ts     Zentraler Planungszustand (optimistisches Speichern, Realtime)
 lib/planner/             Reine Planungslogik, Typen, Demo-Daten, Supabase-Anbindung
 supabase/migrations/     SQL-Migrationen (Tabellen, RLS-Policies, RPCs)

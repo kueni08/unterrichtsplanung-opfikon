@@ -78,6 +78,16 @@ Im Admin-Bereich verwaltet die Koordination die Stammdaten des Teams:
 
 Wochenatelier ist für gleichzeitiges Arbeiten im Team gebaut: Änderungen, die eine Person macht, erscheinen sofort bei allen anderen. Eine Online-Anzeige zeigt, welche Teammitglieder gerade aktiv sind.
 
+## Als App auf dem Gerät
+
+Wochenatelier kann wie eine App auf dem Home-Bildschirm liegen – ohne App-Store, direkt aus dem Browser:
+
+- **iPhone / iPad (Safari):** Seite öffnen → „Teilen“ → „Zum Home-Bildschirm“.
+- **Android (Chrome):** Beim ersten Besuch erscheint unten ein Hinweis „Installieren“; sonst im Browsermenü „App installieren“ oder „Zum Startbildschirm hinzufügen“ wählen.
+- **Computer (Chrome, Edge):** In der Adressleiste auf das Installations-Symbol klicken oder den Hinweis unten auf der Seite verwenden.
+
+Die App-Hülle bleibt danach auch ohne Internet erreichbar. Zum Anmelden und für den gemeinsamen Plan braucht es aber eine Verbindung, da alle Daten beim Team-Server liegen. Erscheint der Hinweis „Eine neue Version ist bereit“, einmal auf „Jetzt aktualisieren“ tippen.
+
 ## Demo-Modus
 
 Die Anwendung lässt sich ohne Konto und ohne Internetverbindung zum Server im Demo-Modus mit Beispieldaten ausprobieren. Die Demo-Daten werden nur lokal im Browser gespeichert und können jederzeit zurückgesetzt werden. Der Demo-Modus eignet sich zum Kennenlernen der Funktionen, nicht für die produktive Planung eines echten Teams.

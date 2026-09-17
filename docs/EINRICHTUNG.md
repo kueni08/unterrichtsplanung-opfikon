@@ -74,6 +74,15 @@ Zusätzliche Regeln, die in der Datenbank erzwungen werden:
 
 Alle Tabellen sind Teil der Supabase-Realtime-Publikation (`supabase_realtime`) mit `replica identity full`. Die App abonniert Einfügungen und Änderungen gefiltert nach Team; Löschungen lassen sich in Supabase Realtime nicht filtern und liefern bei RLS nur den Primärschlüssel – sie werden daher ungefiltert abonniert und in der App anhand der bekannten IDs zugeordnet. Bei jedem Ereignis lädt die App den Teamstand kurz verzögert neu (nicht, solange eigene Änderungen noch gespeichert werden). Gespeichert werden nur die jeweils geänderten Felder, damit gleichzeitige Änderungen an verschiedenen Feldern nicht verloren gehen; bei gleichzeitiger Änderung desselben Feldes gilt die zuletzt gespeicherte. Die Presence-Funktion liefert die Online-Anzeige.
 
+## Progressive Web App (PWA)
+
+- `app/manifest.ts` erzeugt beim Build `manifest.webmanifest`; alle Pfade berücksichtigen `NEXT_PUBLIC_BASE_PATH` (auf GitHub Pages `/unterrichtsplanung-opfikon`).
+- `public/sw.js` ist der Service Worker. Er leitet seine Basis aus dem Registrierungs-Scope ab und cached nur eigene statische Dateien (`_next/static/`, Icons, Startseite). Anfragen an Supabase werden nie gecacht.
+- `components/planner/pwa-setup.tsx` registriert den Service Worker, zeigt den Installations-Hinweis und den Update-Hinweis. Nach dem Deployment einer neuen Version bekommen offene Apps den Hinweis „Jetzt aktualisieren“.
+- Bei Änderungen am Service Worker selbst die Konstante `VERSION` in `public/sw.js` erhöhen, damit alte Caches gelöscht werden.
+- Icons liegen in `public/icons/` (192, 512 und 512 maskable, erzeugt aus `public/icons/eule-app-icon.svg`).
+- Push-Benachrichtigungen sind nicht vorgesehen: Sie bräuchten einen eigenen Server, GitHub Pages liefert nur statische Dateien.
+
 ## GitHub Pages Deployment
 
 Der Workflow `.github/workflows/deploy-pages.yml` baut die Anwendung bei jedem Push auf `main`, bei manuellem Auslösen (`workflow_dispatch`) sowie bei Pull Requests (dort nur Build/Test, kein Deployment). Deployed wird ausschliesslich bei einem Push auf `main`.

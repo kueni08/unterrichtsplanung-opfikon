@@ -293,3 +293,8 @@ button, input, textarea { font: inherit; } button { cursor: pointer; }
 .empty-week { padding:28px 16px 0; }
 .empty-week>button { max-width:100%; height:auto; min-height:36px; white-space:normal; }
 @media print { .template-preview { display:none; } }
+
+/* PWA: Installations- und Update-Hinweis */
+.pwa-toast { position:fixed; left:50%; bottom:max(16px, env(safe-area-inset-bottom)); transform:translateX(-50%); z-index:60; display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:10px; max-width:calc(100vw - 32px); padding:10px 14px; border-radius:14px; background:#17324d; color:#fff; font-size:14px; box-shadow:0 12px 32px #17324d40; }
+.pwa-toast-actions { display:flex; gap:6px; }
+@media print { .pwa-toast { display:none; } }
