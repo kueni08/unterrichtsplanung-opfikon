@@ -19,7 +19,11 @@ function stepsFor(role: Role, joinCode: string): Step[] {
     },
     {
       title: "Wochenplan & Vorlagen",
-      body: "Jede Woche startet aus einer Vorlage (z. B. Regelwoche oder Projektwoche). Wähle eine Vorlage und übernimm sie – danach lässt sich jeder Block einzeln anpassen.",
+      body: "Jede Woche startet aus einer Vorlage – dein Team beginnt mit dem Stundenplan Kastanie. Wähle eine Vorlage und übernimm sie – danach lässt sich jeder Block einzeln anpassen.",
+    },
+    {
+      title: "Fächer pro Klasse & Teamteaching",
+      body: "In einem Block können Klassen gleichzeitig unterschiedliche Fächer haben, z. B. Englisch in der 3./4. und Französisch in der 5. Klasse. Trägst du bei einer Gruppe eine zweite Lehrperson ein, entsteht Teamteaching – beide Kürzel erscheinen im Block.",
     },
     {
       title: "Blöcke bearbeiten, verschieben, übertragen",

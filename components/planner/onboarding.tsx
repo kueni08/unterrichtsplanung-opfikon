@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { buildStarterContent } from "@/lib/planner/demo";
-import { createTeam, joinTeam, sessionToRow, translateError } from "@/lib/planner/supabase-backend";
+import { createTeam, joinTeam, seedStarterContent } from "@/lib/planner/supabase-backend";
 
 /** Für frisch angemeldete Personen ohne Team: Team gründen oder beitreten. */
 export function Onboarding({ supabase, displayName, onDone, onSignOut }: {
@@ -31,17 +31,7 @@ export function Onboarding({ supabase, displayName, onDone, onSignOut }: {
     setError(null);
     try {
       const teamId = await createTeam(supabase, teamName.trim() || "Unser Team", founderName.trim() || displayName);
-      const { groups, templates, sessions } = buildStarterContent([]);
-      const groupRows = groups.map((g) => ({ id: g.id, team_id: teamId, name: g.name, short: g.short, color: g.color, children: g.children, sort_order: g.sortOrder }));
-      const templateRows = templates.map((t) => ({ id: t.id, team_id: teamId, name: t.name, sort_order: t.sortOrder }));
-      const sessionRows = sessions.map((s) => sessionToRow(s, teamId));
-      const results = await Promise.all([
-        supabase.from("groups").insert(groupRows),
-        supabase.from("templates").insert(templateRows),
-        supabase.from("sessions").insert(sessionRows),
-      ]);
-      const failed = results.find((r) => r.error);
-      if (failed?.error) throw new Error(translateError(failed.error.message));
+      await seedStarterContent(supabase, teamId, buildStarterContent);
       onDone(teamId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Team konnte nicht angelegt werden.");
@@ -77,16 +67,16 @@ export function Onboarding({ supabase, displayName, onDone, onSignOut }: {
         <form className="onboarding-card" onSubmit={handleCreate}>
           <div className="card-heading"><span className="icon-box blue"><School /></span><div><h3>Neues Team gründen</h3><p>Du wirst automatisch Koordination</p></div></div>
           <div className="field-stack"><Label htmlFor="team-name">Teamname</Label><Input id="team-name" required placeholder="z. B. ADL Opfikon" value={teamName} onChange={(e) => setTeamName(e.target.value)} /></div>
-          <div className="field-stack"><Label htmlFor="founder-name">Dein Name</Label><Input id="founder-name" required value={founderName} onChange={(e) => setFounderName(e.target.value)} /></div>
+          <div className="field-stack"><Label htmlFor="founder-name">Dein Vorname</Label><Input id="founder-name" required value={founderName} onChange={(e) => setFounderName(e.target.value)} /></div>
           <Button type="submit" disabled={busy !== null}>{busy === "create" ? "Wird angelegt…" : "Team gründen"}</Button>
-          <p className="onboarding-hint">Als Koordination pflegst du Vorlagen, Gruppen und das Team.</p>
+          <p className="onboarding-hint">Als Koordination pflegst du Vorlagen, Gruppen und das Team. Dein Team startet mit der Vorlage „Stundenplan Kastanie SJ 26/27“ (Klassen 3.–5., Lehrpersonen Dani, Andrea, Klara, Nici, Coni). Gib deinen Vornamen so ein, wie er im Stundenplan steht – dann wirst du automatisch mit deinem Kürzel verknüpft.</p>
         </form>
         <form className="onboarding-card" onSubmit={handleJoin}>
           <div className="card-heading"><span className="icon-box mint"><Users /></span><div><h3>Einem Team beitreten</h3><p>Mit dem 8-stelligen Code der Koordination</p></div></div>
           <div className="field-stack"><Label htmlFor="join-code">Beitrittscode</Label><Input id="join-code" required maxLength={8} className="join-code-input" value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} /></div>
-          <div className="field-stack"><Label htmlFor="joiner-name">Dein Name</Label><Input id="joiner-name" required value={joinerName} onChange={(e) => setJoinerName(e.target.value)} /></div>
+          <div className="field-stack"><Label htmlFor="joiner-name">Dein Vorname</Label><Input id="joiner-name" required value={joinerName} onChange={(e) => setJoinerName(e.target.value)} /></div>
           <Button type="submit" variant="outline" disabled={busy !== null}>{busy === "join" ? "Wird geprüft…" : "Team beitreten"}</Button>
-          <p className="onboarding-hint">Den Code findest du bei der Koordination im Admin-Bereich unter „Team“.</p>
+          <p className="onboarding-hint">Den Code findest du bei der Koordination im Admin-Bereich unter „Team“. Trittst du mit deinem Vornamen wie im Stundenplan bei, wirst du automatisch mit deinem bestehenden Profil verknüpft.</p>
         </form>
       </div>
       <button type="button" className="link-button onboarding-signout" onClick={onSignOut}><LogOut size={14} /> Abmelden</button>

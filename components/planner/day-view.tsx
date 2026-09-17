@@ -1,12 +1,13 @@
 "use client";
 
+import { Fragment } from "react";
 import { Clock3, MessageSquareText, Plus, Users } from "lucide-react";
 
 import { SessionCard } from "@/components/planner/session-card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { DAYS, SLOTS } from "@/lib/planner/constants";
+import { BREAK_AFTER, DAYS, SLOTS } from "@/lib/planner/constants";
 import { addDays, parseIsoDate } from "@/lib/planner/dates";
 import type { DayKey, DayMeta, Group, Meeting, Session, Teacher } from "@/lib/planner/types";
 
@@ -46,10 +47,13 @@ export function DayView({ weekStart, selectedDay, onSelectDay, sessions, groups,
           {SLOTS.map((slot, index) => {
             const item = sessions.find((session) => session.day === selectedDay && session.slot === index);
             return (
-              <button type="button" className="timeline-row" key={slot.time} onClick={() => onOpenSession(selectedDay, index)} disabled={disabled}>
-                <div className="timeline-time"><strong>{slot.time}</strong><span>{slot.label}</span></div>
-                {item ? <SessionCard session={item} groups={groups} teachers={teachers} viewerId={viewerId} expanded /> : <div className="timeline-empty"><Plus size={17} /> Freier Block</div>}
-              </button>
+              <Fragment key={slot.time}>
+                <button type="button" className="timeline-row" onClick={() => onOpenSession(selectedDay, index)} disabled={disabled}>
+                  <div className="timeline-time"><strong>{slot.time}–{slot.end}</strong><span>{slot.label}</span></div>
+                  {item ? <SessionCard session={item} groups={groups} teachers={teachers} viewerId={viewerId} expanded /> : <div className="timeline-empty"><Plus size={17} /> Freier Block</div>}
+                </button>
+                {BREAK_AFTER[index] && <div className="timeline-break">{BREAK_AFTER[index]}</div>}
+              </Fragment>
             );
           })}
         </div>

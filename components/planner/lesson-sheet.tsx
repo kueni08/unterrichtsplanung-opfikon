@@ -12,9 +12,9 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Textarea } from "@/components/ui/textarea";
 import { DAYS, SLOTS, tint } from "@/lib/planner/constants";
 import { addDays, parseIsoDate, isoDate } from "@/lib/planner/dates";
-import { countChildren, setAssignment } from "@/lib/planner/logic";
+import { countChildren, deriveTitle, setAssignment } from "@/lib/planner/logic";
 import type { PlannerApi } from "@/hooks/use-planner";
-import type { DayKey, PlannerSnapshot, Session, SessionStatus } from "@/lib/planner/types";
+import type { Assignment, DayKey, PlannerSnapshot, Session, SessionStatus } from "@/lib/planner/types";
 
 const STATUS_OPTIONS: { value: SessionStatus; label: string }[] = [
   { value: "planned", label: "Geplant" },
@@ -46,6 +46,23 @@ export function LessonSheet({ session, api, snapshot, isCoordinator, onOpenChang
     api.updateSession(session!.id, p);
   }
 
+  function patchAssignment(groupId: string, assignmentPatch: Partial<Assignment>) {
+    if (readOnly) return;
+    const next = setAssignment(session!.assignments, groupId, assignmentPatch);
+    api.updateSession(session!.id, { assignments: next });
+  }
+
+  function handleSubjectChange(groupId: string, value: string) {
+    if (readOnly) return;
+    const previous = session!.assignments;
+    const next = setAssignment(previous, groupId, { subject: value });
+    const sessionPatch: Partial<Session> = { assignments: next };
+    if (session!.title === deriveTitle(previous, session!.title)) {
+      sessionPatch.title = deriveTitle(next, session!.title);
+    }
+    api.updateSession(session!.id, sessionPatch);
+  }
+
   function handleMove() {
     if (readOnly) return;
     api.moveSession(session!.id, moveDay, moveSlot);
@@ -73,7 +90,7 @@ export function LessonSheet({ session, api, snapshot, isCoordinator, onOpenChang
     <Sheet open={Boolean(session)} onOpenChange={onOpenChange}>
       <SheetContent className="lesson-sheet sm:max-w-xl">
         <SheetHeader className="sheet-head">
-          <p className="eyebrow">{kind === "template" ? "Vorlagenbaustein" : `${day?.label} · ${slot.time} Uhr`}</p>
+          <p className="eyebrow">{kind === "template" ? "Vorlagenbaustein" : `${day?.label} · ${slot.time}–${slot.end} Uhr`}</p>
           <SheetTitle>Unterrichtsblock bearbeiten</SheetTitle>
           <SheetDescription>Die Wochenübersicht zeigt nur die wichtigsten Stichworte. Details bleiben hier gebündelt.</SheetDescription>
         </SheetHeader>
@@ -92,17 +109,37 @@ export function LessonSheet({ session, api, snapshot, isCoordinator, onOpenChang
             <Label>Gruppen &amp; Zuständigkeit</Label>
             <div className="responsibility-grid">
               {snapshot.groups.map((group) => {
-                const teacherId = session.assignments.find((a) => a.groupId === group.id)?.teacherId ?? "";
+                const assignment = session.assignments.find((a) => a.groupId === group.id);
+                const isOff = assignment?.off ?? false;
                 return (
-                  <div className="responsibility" key={group.id}>
-                    <span className="group-tag" style={{ background: tint(group.color, "28"), color: group.color }}><i style={{ background: group.color }} />{group.name}</span>
-                    <Select disabled={readOnly} value={teacherId || "none"} onValueChange={(value) => patch({ assignments: setAssignment(session.assignments, group.id, value === "none" ? "" : value) })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">— offen —</SelectItem>
-                        {activeTeachers.map((teacher) => <SelectItem key={teacher.id} value={teacher.id}>{teacher.initials} · {teacher.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                  <div className="responsibility-block" key={group.id}>
+                    <div className="responsibility-head">
+                      <span className="group-tag" style={{ background: tint(group.color, "28"), color: group.color }}><i style={{ background: group.color }} />{group.name}</span>
+                      <label className="off-toggle">
+                        <Checkbox disabled={readOnly} checked={isOff} onCheckedChange={(checked) => patchAssignment(group.id, { off: checked === true })} />
+                        frei
+                      </label>
+                    </div>
+                    {!isOff && (
+                      <div className="responsibility-fields">
+                        <Select disabled={readOnly} value={assignment?.teacherId || "none"} onValueChange={(value) => patchAssignment(group.id, { teacherId: value === "none" ? "" : value })}>
+                          <SelectTrigger aria-label={`Lehrperson ${group.name}`}><SelectValue placeholder="Lehrperson" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">— offen —</SelectItem>
+                            {activeTeachers.map((teacher) => <SelectItem key={teacher.id} value={teacher.id}>{teacher.initials} · {teacher.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Select disabled={readOnly} value={assignment?.coTeacherId || "none"} onValueChange={(value) => patchAssignment(group.id, { coTeacherId: value === "none" ? "" : value })}>
+                          <SelectTrigger aria-label={`Co-Lehrperson ${group.name}`}><SelectValue placeholder="Co-Lehrperson" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">— keine —</SelectItem>
+                            {activeTeachers.map((teacher) => <SelectItem key={teacher.id} value={teacher.id}>{teacher.initials} · {teacher.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Input disabled={readOnly} value={assignment?.subject ?? ""} placeholder={session.title} aria-label={`Fach ${group.name}`} onChange={(e) => handleSubjectChange(group.id, e.target.value)} />
+                        <Input disabled={readOnly} value={assignment?.room ?? ""} placeholder={session.room} aria-label={`Raum ${group.name}`} onChange={(e) => patchAssignment(group.id, { room: e.target.value })} />
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -130,7 +167,7 @@ export function LessonSheet({ session, api, snapshot, isCoordinator, onOpenChang
                 </Select>
                 <Select value={String(moveSlot)} onValueChange={(value) => setMoveSlot(Number(value))}>
                   <SelectTrigger aria-label="Lektion"><SelectValue /></SelectTrigger>
-                  <SelectContent>{SLOTS.map((s, i) => <SelectItem key={s.time} value={String(i)}>{s.time} · {s.label}</SelectItem>)}</SelectContent>
+                  <SelectContent>{SLOTS.map((s, i) => <SelectItem key={s.time} value={String(i)}>{s.time}–{s.end} · {s.label}</SelectItem>)}</SelectContent>
                 </Select>
                 <Button type="button" variant="outline" onClick={handleMove}>Verschieben</Button>
               </div>

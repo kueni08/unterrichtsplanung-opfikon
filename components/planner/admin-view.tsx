@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { CalendarDays, Check, CircleAlert, Copy, Download, Plus, RefreshCw, RotateCcw, Trash2, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -10,9 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { DAYS, GROUP_PALETTE, SLOTS, tint } from "@/lib/planner/constants";
 import { isoDate } from "@/lib/planner/dates";
-import { sessionsIn } from "@/lib/planner/logic";
+import { daysFromTemplate, sessionsIn } from "@/lib/planner/logic";
 import type { PlannerApi } from "@/hooks/use-planner";
-import type { DayKey, Group, PlannerSnapshot, Session, Teacher } from "@/lib/planner/types";
+import type { DayKey, DayMeta, Group, PlannerSnapshot, Session, Teacher, WeekDays } from "@/lib/planner/types";
 
 export function AdminView({ api, snapshot, mode, selectedTemplateId, onSelectTemplate, onOpenSheet, currentUserId }: {
   api: PlannerApi;
@@ -26,6 +26,7 @@ export function AdminView({ api, snapshot, mode, selectedTemplateId, onSelectTem
   const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
   const [groupRemoveId, setGroupRemoveId] = useState<string | null>(null);
   const [newTeacherName, setNewTeacherName] = useState("");
+  const selectedTemplate = snapshot.templates.find((t) => t.id === selectedTemplateId) ?? null;
 
   function openTemplateCell(day: DayKey, slot: number) {
     const list = sessionsIn(snapshot.sessions, { templateId: selectedTemplateId });
@@ -120,8 +121,21 @@ export function AdminView({ api, snapshot, mode, selectedTemplateId, onSelectTem
             <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
             <SelectContent>{snapshot.templates.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
           </Select>
+          {selectedTemplate && (
+            <div className="field-stack template-name-field">
+              <label htmlFor="template-name-input">Name der Vorlage</label>
+              <Input id="template-name-input" value={selectedTemplate.name} onChange={(e) => api.updateTemplate(selectedTemplate.id, { name: e.target.value })} />
+            </div>
+          )}
           <MiniTemplate sessions={sessionsIn(snapshot.sessions, { templateId: selectedTemplateId })} groups={snapshot.groups} teachers={snapshot.teachers} onOpen={openTemplateCell} />
           <p className="admin-hint">Auf einen Block klicken, um Inhalt, Raum und Zuständigkeiten zu ändern.</p>
+          {selectedTemplate && (
+            <TemplateAttendance
+              template={selectedTemplate}
+              teachers={snapshot.teachers}
+              onChange={(days) => api.updateTemplate(selectedTemplate.id, { days })}
+            />
+          )}
         </article>
 
         <article className="admin-card groups-card">
@@ -174,6 +188,61 @@ function TeacherRow({ teacher, onChange }: { teacher: Teacher; onChange: (patch:
       <span className="teacher-avatar" style={{ background: teacher.color }}>{teacher.initials}</span>
       <Input value={teacher.name} onChange={(e) => onChange({ name: e.target.value })} aria-label="Name Lehrperson" />
     </label>
+  );
+}
+
+function TemplateAttendance({ template, teachers, onChange }: {
+  template: { days: Partial<WeekDays> | null };
+  teachers: Teacher[];
+  onChange: (days: Partial<WeekDays>) => void;
+}) {
+  const activeTeachers = teachers.filter((t) => t.active);
+  const days = daysFromTemplate(template.days, teachers);
+
+  function updateDay(day: DayKey, patch: Partial<DayMeta>) {
+    onChange({ ...template.days, [day]: { ...days[day], ...patch } });
+  }
+
+  function toggleTeacher(day: DayKey, teacherId: string, checked: boolean) {
+    const attendance = checked
+      ? [...days[day].attendance, teacherId]
+      : days[day].attendance.filter((id) => id !== teacherId);
+    updateDay(day, { attendance });
+  }
+
+  return (
+    <div className="template-attendance">
+      <p className="admin-subheading">Standard-Anwesenheit</p>
+      <div className="attendance-matrix">
+        <div className="matrix-corner" />
+        {DAYS.map((day) => <strong className="matrix-day-head" key={day.id}>{day.short}</strong>)}
+        {activeTeachers.map((teacher) => (
+          <Fragment key={teacher.id}>
+            <span className="matrix-teacher"><span className="teacher-avatar small" style={{ background: teacher.color }}>{teacher.initials}</span>{teacher.name}</span>
+            {DAYS.map((day) => (
+              <label className="matrix-cell" key={`${teacher.id}-${day.id}`}>
+                <Checkbox
+                  checked={days[day.id].attendance.includes(teacher.id)}
+                  onCheckedChange={(checked) => toggleTeacher(day.id, teacher.id, checked === true)}
+                  aria-label={`${teacher.name} am ${day.label}`}
+                />
+              </label>
+            ))}
+          </Fragment>
+        ))}
+        <span className="matrix-teacher matrix-note-label">Notiz</span>
+        {DAYS.map((day) => (
+          <Input
+            key={`note-${day.id}`}
+            className="template-notes"
+            value={days[day.id].note}
+            onChange={(e) => updateDay(day.id, { note: e.target.value })}
+            aria-label={`Notiz ${day.label}`}
+            placeholder="…"
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 

@@ -1,6 +1,6 @@
 import { GripVertical, MapPin } from "lucide-react";
 
-import { countChildren, isVisibleFor } from "@/lib/planner/logic";
+import { countChildren, isVisibleFor, sessionTeacherIds } from "@/lib/planner/logic";
 import type { Group, Session, Teacher } from "@/lib/planner/types";
 
 const STATUS_LABEL: Record<Session["status"], string> = {
@@ -25,9 +25,11 @@ export function SessionCard({ session, groups, teachers, viewerId = "all", expan
   }
 
   const knownGroupIds = new Set(groups.map((g) => g.id));
+  const activeAssignments = session.assignments.filter((a) => !a.off);
+  const subjectsDiffer = new Set(activeAssignments.filter((a) => a.subject).map((a) => a.subject)).size > 1;
 
   return (
-    <div className={`session-card ${expanded ? "expanded" : ""} status-${session.status}`}>
+    <div className={`session-card ${expanded ? "expanded" : ""} status-${session.status}`} title={session.title}>
       <div className="session-title-row">
         {showDragHandle && <span className="card-drag-handle" aria-hidden="true"><GripVertical /></span>}
         <strong>{session.title}</strong>
@@ -40,7 +42,7 @@ export function SessionCard({ session, groups, teachers, viewerId = "all", expan
             <span className="group-dot all-dot" />
             <b>Alle {countChildren(groups)}</b>
             <span className="teacher-mini-list">
-              {session.assignments.map((a) => teachers.find((t) => t.id === a.teacherId)?.initials).filter(Boolean).join(" · ")}
+              {sessionTeacherIds(session).map((id) => teachers.find((t) => t.id === id)?.initials).filter(Boolean).join(" · ")}
             </span>
           </div>
         ) : (
@@ -49,13 +51,32 @@ export function SessionCard({ session, groups, teachers, viewerId = "all", expan
             .slice(0, expanded ? 6 : 3)
             .map((assignment) => {
               const group = groups.find((g) => g.id === assignment.groupId);
-              const teacher = teachers.find((t) => t.id === assignment.teacherId);
               if (!group) return null;
+
+              if (assignment.off) {
+                return (
+                  <div className="assignment is-off" key={assignment.groupId} title={`${group.name} · frei`}>
+                    <span className="group-dot" style={{ background: group.color }} />
+                    <b>{group.short}</b>
+                    <span className="teacher-free">frei</span>
+                  </div>
+                );
+              }
+
+              const teacher = teachers.find((t) => t.id === assignment.teacherId);
+              const coTeacher = assignment.coTeacherId ? teachers.find((t) => t.id === assignment.coTeacherId) : null;
+              const showSubject = Boolean(assignment.subject) && (subjectsDiffer || assignment.subject !== session.title);
+              const detail = [showSubject ? assignment.subject : null, assignment.room].filter(Boolean).join(" · ");
+              const tooltip = [group.name, assignment.subject, assignment.room].filter(Boolean).join(" · ");
+
               return (
-                <div className="assignment" key={`${assignment.groupId}-${assignment.teacherId}`}>
+                <div className="assignment" key={assignment.groupId} title={tooltip}>
                   <span className="group-dot" style={{ background: group.color }} />
                   <b>{group.short}</b>
-                  {teacher ? <span>{teacher.initials}</span> : <span className="teacher-open">offen</span>}
+                  {teacher
+                    ? <span>{teacher.initials}{coTeacher ? `/${coTeacher.initials}` : ""}</span>
+                    : <span className="teacher-open">offen</span>}
+                  {detail && <small className="assignment-detail">{detail}</small>}
                 </div>
               );
             })
