@@ -37,7 +37,7 @@ jobs:
           auth=$(curl -s -o /dev/null -w '%{http_code}' -H "apikey: $SUPABASE_PUBLISHABLE_KEY" "$SUPABASE_URL/auth/v1/health")
           echo "Auth health: HTTP $auth"
           echo "code=$code" >> "$GITHUB_OUTPUT"
-          echo "root=$root" >> "$GITHUB_OUTPUT"
+          echo "auth=$auth" >> "$GITHUB_OUTPUT"
 
       - name: Status prüfen und bei Pause wiederherstellen (nur mit SUPABASE_ACCESS_TOKEN)
         if: ${{ env.SUPABASE_ACCESS_TOKEN != '' }}
@@ -55,6 +55,6 @@ jobs:
       - name: Ergebnis
         run: |
           case "${{ steps.ping.outputs.code }}" in 2*|4*) ok=1 ;; *) ok=0 ;; esac
-          if [ "$ok" != "1" ] || [ "${{ steps.ping.outputs.root }}" != "200" ]; then
-            echo "::warning::Das Supabase-Projekt antwortet nicht normal (Datenbank HTTP ${{ steps.ping.outputs.code }}, API ${{ steps.ping.outputs.root }}). Falls pausiert: im Dashboard unter https://supabase.com/dashboard/project/$PROJECT_REF wieder starten oder SUPABASE_ACCESS_TOKEN als Secret hinterlegen."
+          if [ "$ok" != "1" ] || [ "${{ steps.ping.outputs.auth }}" != "200" ]; then
+            echo "::warning::Das Supabase-Projekt antwortet nicht normal (Datenbank HTTP ${{ steps.ping.outputs.code }}, Auth ${{ steps.ping.outputs.auth }}). Falls pausiert: im Dashboard unter https://supabase.com/dashboard/project/$PROJECT_REF wieder starten oder SUPABASE_ACCESS_TOKEN als Secret hinterlegen."
           fi
