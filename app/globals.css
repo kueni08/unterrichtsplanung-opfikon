@@ -470,3 +470,5 @@ button, input, textarea { font: inherit; } button { cursor: pointer; }
 .changes-toggle { margin-top: 8px; padding: 6px 8px; border: 0; border-radius: 8px; background: transparent; color: #0b4a7e; font-size: 12px; font-weight: 700; } .changes-toggle:hover { background: #e8eff5; }
 
 .notify-setting { display: grid; grid-template-columns: 1fr 170px; align-items: center; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 12px; color: #5b7088; font-weight: 700; }
+
+.notify-setting .changes-toggle { grid-column: 1 / -1; justify-self: start; margin-top: 2px; } .notify-result { grid-column: 1 / -1; color: #5b7088; font-weight: 500; }

@@ -15,6 +15,8 @@ export interface PlannerBackend {
   /** Meldet Änderungen anderer Personen und wer gerade online ist. */
   subscribe(handlers: RealtimeHandlers, viewer: Viewer): () => void;
   regenerateJoinCode(): Promise<string>;
+  /** Test-Mail an die angemeldete Person (nur Supabase); liefert eine Meldung */
+  testMail?(): Promise<string>;
   /** Nur Demo: Beispieldaten zurücksetzen. */
   reset?(): Promise<PlannerSnapshot>;
 }

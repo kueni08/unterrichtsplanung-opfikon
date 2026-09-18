@@ -13,7 +13,7 @@ import type { ChangeEntry, NotifyMode } from "@/lib/planner/types";
  * „Was ist neu“: Glocke mit Zähler der Änderungen anderer seit dem letzten „Alles gesehen“,
  * Liste mit wer/wann/was, optional die ganze Historie der letzten Tage.
  */
-export function ChangesMenu({ changes, since, viewerId, onSeen, onOpenSession, notify, onNotifyChange }: {
+export function ChangesMenu({ changes, since, viewerId, onSeen, onOpenSession, notify, onNotifyChange, onTestMail }: {
   changes: ChangeEntry[];
   since: string;
   viewerId: string;
@@ -22,7 +22,10 @@ export function ChangesMenu({ changes, since, viewerId, onSeen, onOpenSession, n
   /** eigene E-Mail-Einstellung (nur im Team-Modus) */
   notify?: NotifyMode;
   onNotifyChange?: (value: NotifyMode) => void;
+  /** Test-Mail an die eigene Adresse; liefert eine Meldung zurück */
+  onTestMail?: () => Promise<string>;
 }) {
+  const [testState, setTestState] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const unseen = unseenChanges(changes, since, viewerId);
   const list = showAll
@@ -72,6 +75,10 @@ export function ChangesMenu({ changes, since, viewerId, onSeen, onOpenSession, n
                 <SelectItem value="daily">täglich um 17 Uhr</SelectItem>
               </SelectContent>
             </Select>
+            {onTestMail && (
+              <button type="button" className="changes-toggle" disabled={testState === "…"} onClick={async () => { setTestState("…"); setTestState(await onTestMail()); }}>Test-Mail an mich senden</button>
+            )}
+            {testState && testState !== "…" && <small className="notify-result">{testState}</small>}
           </div>
         )}
       </PopoverContent>
