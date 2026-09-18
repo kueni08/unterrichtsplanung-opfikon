@@ -71,6 +71,8 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
   const [moveConflict, setMoveConflict] = useState<MoveConflict | null>(null);
   const [lastSeen, setLastSeen] = useState<string | null>(null);
   const [tourOpen, setTourOpen] = useState(() => initialTourOpen(userId));
+  // über das Hilfe-Symbol bewusst geöffnet → auch zeigen, wenn serverseitig „gesehen“
+  const [tourForced, setTourForced] = useState(false);
 
   if (api.loadError) {
     return (
@@ -123,9 +125,10 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
     setTab("day");
   }
 
-  function closeTour(open: boolean) {
-    if (!open) {
+  function closeTour(open: boolean, remember = true) {
+    if (!open && remember) {
       try { window.localStorage.setItem(tourSeenKey(userId), "1"); } catch { /* Speicher gesperrt */ }
+      if (mode === "team") api.markTourSeen();
     }
     setTourOpen(open);
   }
@@ -163,7 +166,7 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
         </div>
         <div className="header-meta">
           <ChangesMenu changes={snapshot.changes} since={since} viewerId={userId} onSeen={markSeen} onOpenSession={(id) => { if (snapshot.sessions.some((s) => s.id === id)) setSheetSessionId(id); }} notify={api.me?.notify} onNotifyChange={mode === "team" ? api.setNotify : undefined} onTestMail={mode === "team" ? api.testMail : undefined} />
-          <button type="button" className="help-button" onClick={() => setTourOpen(true)} aria-label="Kurze Einführung anzeigen"><HelpCircle size={18} /></button>
+          <button type="button" className="help-button" onClick={() => { setTourForced(true); setTourOpen(true); }} aria-label="Kurze Einführung anzeigen"><HelpCircle size={18} /></button>
           <p className={`save-state save-${api.saveState}`}>{saveIcon} {saveLabel}</p>
           {mode === "team" && onlineTeachers.length > 0 && (
             <div className="avatar-stack" aria-label="Gerade online">
@@ -364,7 +367,7 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
           else if (action === "append") { api.appendSession(session.id, target.id); setSheetSessionId(null); }
         }}
       />
-      <WelcomeTour open={tourOpen} onOpenChange={closeTour} role={api.role} joinCode={snapshot.team.joinCode} />
+      <WelcomeTour open={tourOpen && !(api.me?.tourSeen && !tourForced)} onOpenChange={closeTour} role={api.role} joinCode={snapshot.team.joinCode} />
       <Toaster richColors position="bottom-center" />
     </main>
   );

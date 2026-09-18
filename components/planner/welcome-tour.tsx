@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Role } from "@/lib/planner/types";
 
@@ -39,15 +40,16 @@ function stepsFor(role: Role, joinCode: string): Step[] {
   ];
 }
 
-export function WelcomeTour({ open, onOpenChange, role, joinCode }: { open: boolean; onOpenChange: (open: boolean) => void; role: Role; joinCode: string }) {
+export function WelcomeTour({ open, onOpenChange, role, joinCode }: { open: boolean; onOpenChange: (open: boolean, remember?: boolean) => void; role: Role; joinCode: string }) {
   const [index, setIndex] = useState(0);
+  const [remember, setRemember] = useState(true);
   const steps = stepsFor(role, joinCode);
   const step = steps[index];
   const isLast = index === steps.length - 1;
 
   function handleOpenChange(next: boolean) {
     if (!next) setIndex(0);
-    onOpenChange(next);
+    onOpenChange(next, remember);
   }
 
   return (
@@ -71,6 +73,10 @@ export function WelcomeTour({ open, onOpenChange, role, joinCode }: { open: bool
             <span key={s.title} className={i === index ? "tour-dot active" : "tour-dot"} />
           ))}
         </div>
+        <label className="tour-remember">
+          <Checkbox checked={remember} onCheckedChange={(v) => setRemember(v === true)} />
+          <span>Nicht mehr anzeigen</span>
+        </label>
         <div className="tour-actions">
           {!isLast && <button type="button" className="link-button" onClick={() => handleOpenChange(false)}>Überspringen</button>}
           <div className="tour-actions-right">

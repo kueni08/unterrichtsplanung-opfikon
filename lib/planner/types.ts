@@ -101,6 +101,8 @@ export type Member = {
   teacherId: string | null;
   /** E-Mail-Benachrichtigung bei wichtigen Änderungen */
   notify?: NotifyMode;
+  /** Einführungstour bereits gesehen (serverseitig, geräteübergreifend) */
+  tourSeen?: boolean;
 };
 
 export type TeamInfo = { id: string; name: string; joinCode: string };
@@ -144,6 +146,7 @@ export type PersistOp =
   | { type: "upsertChildNotes"; rows: ChildNote[] }
   | { type: "upsertChanges"; rows: ChangeEntry[]; /** wichtige neue Einträge per E-Mail melden */ notify?: boolean }
   | { type: "setNotify"; userId: string; value: NotifyMode }
+  | { type: "markTourSeen" }
   | { type: "deleteChildNotes"; ids: string[] }
   | { type: "upsertTeachers"; rows: Teacher[] }
   | { type: "upsertTemplates"; rows: Template[] }
