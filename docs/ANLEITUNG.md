@@ -134,7 +134,7 @@ Alles, was jemand im Team ändert, wird protokolliert (wer, wann, was) und für 
 - Die **Glocke** oben rechts zählt die Änderungen anderer seit dem letzten Besuch. Die Liste „Was ist neu“ zeigt wer, wann, was; ein Klick öffnet die betroffene Lektion. „Alles gesehen“ setzt die Markierungen zurück – pro Person und Gerät. Über „Alle Änderungen der letzten 14 Tage“ lässt sich die ganze Historie einsehen.
 - Im Lektions-Editor steht oben „Zuletzt geändert von …“.
 
-Benachrichtigungen per E-Mail sind vorbereitet, aber noch nicht aktiv (siehe Einrichtung).
+**E-Mail-Benachrichtigung:** Unten in der Liste „Was ist neu“ wählt jede Person selbst: **nie**, **sofort** bei jeder wichtigen Änderung anderer oder **täglich** eine Zusammenfassung (Mo–Fr um 17 Uhr). Die Mail nennt wer/wann/was und enthält einen Link zum Wochenplan; Absender ist „Wochenatelier“. Kleine Änderungen (Notizen, Status) lösen nie eine Mail aus.
 
 ## Demo-Modus
 

@@ -10,7 +10,7 @@ import {
   applyChanged, carryForwardTarget, continuationTitle, defaultAssignments, emptyDays,
   findFreeSlot, makeSession, newId, pickFields, reorderSessions, sameContainer, sessionsIn, uniqueInitials, weekFromTemplate,
 } from "@/lib/planner/logic";
-import type { ChangeEntry, ChangeKind, Child, ChildNote, DayKey, DayMeta, Group, Member, NoteKind, PersistOp, PlannerSnapshot, Role, Session, Teacher, Template, Viewer } from "@/lib/planner/types";
+import type { ChangeEntry, ChangeKind, Child, ChildNote, DayKey, DayMeta, Group, Member, NoteKind, NotifyMode, PersistOp, PlannerSnapshot, Role, Session, Teacher, Template, Viewer } from "@/lib/planner/types";
 
 export type SaveState = "saved" | "saving" | "error";
 export type Container = { weekStart: string } | { templateId: string };
@@ -148,7 +148,7 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
       : { id: newId(), weekStart: entry.weekStart ?? null, sessionId, kind: entry.kind, importance: entry.importance, summary: entry.summary, authorId: viewer.userId, authorName: viewer.displayName, createdAt: now };
     const changes = [row, ...snap.changes.filter((c) => c.id !== row.id)].slice(0, 400);
     setSnapshot({ ...snap, changes });
-    enqueue({ type: "upsertChanges", rows: [row] });
+    enqueue({ type: "upsertChanges", rows: [row], notify: !recent && entry.importance === "major" });
   }, [enqueue, setSnapshot, viewer.userId, viewer.displayName]);
 
   // Laden, Realtime, Presence
@@ -528,6 +528,12 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     });
   }, [debounce, setSnapshot]);
 
+  /** Eigene E-Mail-Benachrichtigung (nie / wichtige sofort / täglich) */
+  const setNotify = useCallback((value: NotifyMode) => {
+    const snap = get();
+    commit({ ...snap, members: snap.members.map((m) => (m.userId === viewer.userId ? { ...m, notify: value } : m)) }, [{ type: "setNotify", userId: viewer.userId, value }]);
+  }, [commit, viewer.userId]);
+
   const renameTeam = useCallback((name: string) => {
     const snap = get();
     setSnapshot({ ...snap, team: { ...snap.team, name } });
@@ -569,7 +575,7 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     snapshot, loadError, saveState, onlineUserIds, me, role, isCoordinator: role === "koordination",
     reload, flush,
     updateSession, addSession, removeSession, moveSession, swapSessions, replaceSession, appendSession, carryForward, createWeekFromTemplate, updateDay,
-    addChild, updateChild, removeChildren, assignChildren, importChildren, addChildNote, updateChildNote, removeChildNote,
+    addChild, updateChild, removeChildren, assignChildren, importChildren, addChildNote, updateChildNote, removeChildNote, setNotify,
     updateGroup, addGroup, removeGroup, updateTeacher, addTeacher, updateTemplate, renameTeam, updateMember, removeMember,
     regenerateJoinCode, resetDemo: backend.reset ? resetDemo : undefined,
   };

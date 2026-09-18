@@ -93,11 +93,14 @@ export type Template = {
   days: Partial<WeekDays> | null;
 };
 
+export type NotifyMode = "none" | "instant" | "daily";
 export type Member = {
   userId: string;
   displayName: string;
   role: Role;
   teacherId: string | null;
+  /** E-Mail-Benachrichtigung bei wichtigen Änderungen */
+  notify?: NotifyMode;
 };
 
 export type TeamInfo = { id: string; name: string; joinCode: string };
@@ -139,7 +142,8 @@ export type PersistOp =
   | { type: "upsertChildren"; rows: Child[] }
   | { type: "deleteChildren"; ids: string[] }
   | { type: "upsertChildNotes"; rows: ChildNote[] }
-  | { type: "upsertChanges"; rows: ChangeEntry[] }
+  | { type: "upsertChanges"; rows: ChangeEntry[]; /** wichtige neue Einträge per E-Mail melden */ notify?: boolean }
+  | { type: "setNotify"; userId: string; value: NotifyMode }
   | { type: "deleteChildNotes"; ids: string[] }
   | { type: "upsertTeachers"; rows: Teacher[] }
   | { type: "upsertTemplates"; rows: Template[] }

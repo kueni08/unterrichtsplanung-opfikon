@@ -46,6 +46,7 @@
     "vite.config.ts",
     "drizzle.config.ts",
     "out",
-    ".next"
+    ".next",
+    "supabase/functions"
   ]
 }

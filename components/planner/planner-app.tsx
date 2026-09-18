@@ -162,7 +162,7 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
           </div>
         </div>
         <div className="header-meta">
-          <ChangesMenu changes={snapshot.changes} since={since} viewerId={userId} onSeen={markSeen} onOpenSession={(id) => { if (snapshot.sessions.some((s) => s.id === id)) setSheetSessionId(id); }} />
+          <ChangesMenu changes={snapshot.changes} since={since} viewerId={userId} onSeen={markSeen} onOpenSession={(id) => { if (snapshot.sessions.some((s) => s.id === id)) setSheetSessionId(id); }} notify={api.me?.notify} onNotifyChange={mode === "team" ? api.setNotify : undefined} />
           <button type="button" className="help-button" onClick={() => setTourOpen(true)} aria-label="Kurze Einführung anzeigen"><HelpCircle size={18} /></button>
           <p className={`save-state save-${api.saveState}`}>{saveIcon} {saveLabel}</p>
           {mode === "team" && onlineTeachers.length > 0 && (

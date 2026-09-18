@@ -103,7 +103,19 @@ Alle Tabellen sind Teil der Supabase-Realtime-Publikation (`supabase_realtime`) 
 
 Tabelle `changes` (Team, Woche, Lektion, Art, Wichtigkeit, Zusammenfassung, Person, Zeitpunkt). Die App schreibt bei jeder Aktion einen Eintrag (`logChange` in `hooks/use-planner.ts`); Tipp-Änderungen an derselben Lektion werden innerhalb von 10 Minuten zu einem Eintrag zusammengefasst. Geladen werden die letzten 14 Tage (max. 400 Einträge). „Gesehen bis“ liegt pro Person und Gerät im localStorage.
 
-**E-Mail-Benachrichtigungen (optional, noch nicht aktiv):** Vorgesehen ist eine Supabase Edge Function, die per Database Webhook auf neue `changes`-Zeilen mit `importance = 'major'` reagiert und Mitglieder mit Einstellung „sofort“ bzw. per Zeitplan „täglich“ informiert; Versand über einen Mail-Dienst wie Resend (API-Key als Secret der Edge Function). Voraussetzungen: Mail-Dienst-Konto, Spalte `notify` in `team_members`, Einstellung im Admin/Profil.
+## E-Mail-Benachrichtigungen (Resend)
+
+Jedes Mitglied stellt unter der Glocke „Was ist neu“ ein: **nie**, **sofort** (bei jeder wichtigen Änderung anderer) oder **täglich** (Zusammenfassung Mo–Fr um 17 Uhr). Gespeichert in `team_members.notify` (Funktion `set_notify`).
+
+Technik: Die App ruft nach einer wichtigen Änderung die Edge Function `notify-changes` auf (`supabase/functions/notify-changes/index.ts`). Sie prüft das JWT der aufrufenden Person, lädt den Eintrag über deren Rechte, ermittelt die Empfänger:innen mit „sofort“ (ohne die verursachende Person), holt die E-Mail-Adressen über die Auth-Admin-API und versendet über die Resend-API. `changes.notified_at` verhindert Doppelversand. Die tägliche Zusammenfassung löst der Workflow `.github/workflows/daily-digest.yml` aus (Modus `daily`, abgesichert über `DIGEST_SECRET`).
+
+Einrichtung (einmalig):
+1. Konto auf resend.com; ohne eigene Domain sendet Resend von `onboarding@resend.dev`. Für eine eigene Absenderadresse die Domain in Resend hinzufügen und die angezeigten DNS-Einträge setzen.
+2. Supabase-Dashboard → Edge Functions → Secrets: `RESEND_API_KEY` (Pflicht), optional `RESEND_FROM` (z. B. `Wochenatelier <wochenatelier@schule.ch>`), `DIGEST_SECRET` (beliebige lange Zeichenfolge), optional `APP_URL`.
+3. GitHub-Repo → Settings → Secrets → Actions: `DIGEST_SECRET` mit demselben Wert.
+4. Funktion deployen: `supabase functions deploy notify-changes --no-verify-jwt` (die Funktion prüft das JWT selbst; der Tages-Modus läuft über das Secret).
+
+Ohne `RESEND_API_KEY` läuft die App unverändert – die Funktion protokolliert nur, dass keine Mail verschickt wurde.
 
 ## Pausieren im Gratis-Plan verhindern
 
