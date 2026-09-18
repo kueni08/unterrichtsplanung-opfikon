@@ -25,6 +25,8 @@ Eine ausführliche Bedienungsanleitung für Lehrpersonen und Koordination steht 
 
 ## Direkt testen
 
+**Werbespot (4:28 Min):** https://kueni08.github.io/unterrichtsplanung-opfikon/werbespot/
+
 Live-Version: **https://kueni08.github.io/unterrichtsplanung-opfikon/**
 
 Die App kann dort im Demo-Modus ohne Anmeldung ausprobiert werden. Für die produktive Nutzung registrieren sich Lehrpersonen mit E-Mail und Passwort und gründen ein Team oder treten einem bestehenden Team mit Beitrittscode bei.
