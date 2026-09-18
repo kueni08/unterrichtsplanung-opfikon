@@ -30,9 +30,14 @@ jobs:
             -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
             -H "Authorization: Bearer $SUPABASE_PUBLISHABLE_KEY" \
             "$SUPABASE_URL/rest/v1/teams?select=id&limit=1")
-          echo "REST: HTTP $code – $(head -c 200 /tmp/body)"
-          curl -s -o /dev/null -w 'Auth health: HTTP %{http_code}\n' "$SUPABASE_URL/auth/v1/health" -H "apikey: $SUPABASE_PUBLISHABLE_KEY"
+          # 401 ist hier normal: der öffentliche Schlüssel darf nichts lesen, die Anfrage erreicht die Datenbank trotzdem.
+          echo "REST (Datenbank): HTTP $code - $(head -c 120 /tmp/body)"
+          root=$(curl -s -o /dev/null -w '%{http_code}' -H "apikey: $SUPABASE_PUBLISHABLE_KEY" "$SUPABASE_URL/rest/v1/")
+          echo "REST (API-Wurzel): HTTP $root"
+          auth=$(curl -s -o /dev/null -w '%{http_code}' -H "apikey: $SUPABASE_PUBLISHABLE_KEY" "$SUPABASE_URL/auth/v1/health")
+          echo "Auth health: HTTP $auth"
           echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
 
       - name: Status prüfen und bei Pause wiederherstellen (nur mit SUPABASE_ACCESS_TOKEN)
         if: ${{ env.SUPABASE_ACCESS_TOKEN != '' }}
@@ -41,7 +46,7 @@ jobs:
             "https://api.supabase.com/v1/projects/$PROJECT_REF" | sed -n 's/.*"status":"\([A-Z_]*\)".*/\1/p')
           echo "Projektstatus: $status"
           if [ "$status" = "INACTIVE" ]; then
-            echo "Projekt ist pausiert – stelle wieder her …"
+            echo "Projekt ist pausiert - stelle wieder her ..."
             curl -s -X POST -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
               "https://api.supabase.com/v1/projects/$PROJECT_REF/restore"
             echo
@@ -49,6 +54,7 @@ jobs:
 
       - name: Ergebnis
         run: |
-          if [ "${{ steps.ping.outputs.code }}" != "200" ]; then
-            echo "::warning::Das Supabase-Projekt hat nicht mit 200 geantwortet (HTTP ${{ steps.ping.outputs.code }}). Falls pausiert: im Dashboard unter https://supabase.com/dashboard/project/$PROJECT_REF wieder starten oder SUPABASE_ACCESS_TOKEN als Secret hinterlegen."
+          case "${{ steps.ping.outputs.code }}" in 2*|4*) ok=1 ;; *) ok=0 ;; esac
+          if [ "$ok" != "1" ] || [ "${{ steps.ping.outputs.root }}" != "200" ]; then
+            echo "::warning::Das Supabase-Projekt antwortet nicht normal (Datenbank HTTP ${{ steps.ping.outputs.code }}, API ${{ steps.ping.outputs.root }}). Falls pausiert: im Dashboard unter https://supabase.com/dashboard/project/$PROJECT_REF wieder starten oder SUPABASE_ACCESS_TOKEN als Secret hinterlegen."
           fi
