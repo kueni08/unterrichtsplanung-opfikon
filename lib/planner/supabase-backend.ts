@@ -37,6 +37,7 @@ const toMember = (r: Row): Member => ({
   userId: String(r.user_id), displayName: String(r.display_name ?? ""), role: r.role as Role,
   teacherId: (r.teacher_id as string | null) ?? null,
   notify: (["none", "instant", "daily"].includes(String(r.notify)) ? String(r.notify) : "none") as NotifyMode,
+  tourSeen: r.tour_seen === true,
 });
 const toSession = (r: Row): Session => ({
   id: String(r.id), weekStart: (r.week_start as string | null) ?? null, templateId: (r.template_id as string | null) ?? null,
@@ -149,7 +150,7 @@ export function createSupabaseBackend(client: SupabaseClient, teamId: string): P
       const since = new Date(Date.now() - 14 * 86400000).toISOString();
       const [team, members, teachers, groups, children, childNotes, changes, templates, weeks, sessions] = await Promise.all([
         client.from("teams").select("id, name, join_code").eq("id", teamId).single(),
-        client.from("team_members").select("user_id, display_name, role, teacher_id, notify").eq("team_id", teamId),
+        client.from("team_members").select("user_id, display_name, role, teacher_id, notify, tour_seen").eq("team_id", teamId),
         client.from("teachers").select("*").eq("team_id", teamId).order("sort_order").order("created_at"),
         client.from("groups").select("*").eq("team_id", teamId).order("sort_order").order("created_at"),
         client.from("children").select("*").eq("team_id", teamId).order("sort_order").order("last_name").order("first_name"),
@@ -244,6 +245,9 @@ export function createSupabaseBackend(client: SupabaseClient, teamId: string): P
           return;
         case "setNotify":
           check(await client.rpc("set_notify", { p_team: teamId, p_value: op.value }));
+          return;
+        case "markTourSeen":
+          check(await client.rpc("mark_tour_seen", { p_team: teamId }));
           return;
         case "upsertTeachers":
           check(await client.from("teachers").upsert(op.rows.map((t) => ({

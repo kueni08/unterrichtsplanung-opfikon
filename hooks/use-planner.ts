@@ -528,6 +528,13 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     });
   }, [debounce, setSnapshot]);
 
+  /** Einführungstour als gesehen merken – auf allen Geräten */
+  const markTourSeen = useCallback(() => {
+    const snap = get();
+    if (snap.members.find((m) => m.userId === viewer.userId)?.tourSeen) return;
+    commit({ ...snap, members: snap.members.map((m) => (m.userId === viewer.userId ? { ...m, tourSeen: true } : m)) }, [{ type: "markTourSeen" }]);
+  }, [commit, viewer.userId]);
+
   const testMail = useCallback(async () => backend.testMail ? backend.testMail() : "Im Demo-Modus gibt es keine Mails.", [backend]);
 
   /** Eigene E-Mail-Benachrichtigung (nie / wichtige sofort / täglich) */
@@ -577,7 +584,7 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     snapshot, loadError, saveState, onlineUserIds, me, role, isCoordinator: role === "koordination",
     reload, flush,
     updateSession, addSession, removeSession, moveSession, swapSessions, replaceSession, appendSession, carryForward, createWeekFromTemplate, updateDay,
-    addChild, updateChild, removeChildren, assignChildren, importChildren, addChildNote, updateChildNote, removeChildNote, setNotify, testMail,
+    addChild, updateChild, removeChildren, assignChildren, importChildren, addChildNote, updateChildNote, removeChildNote, setNotify, testMail, markTourSeen,
     updateGroup, addGroup, removeGroup, updateTeacher, addTeacher, updateTemplate, renameTeam, updateMember, removeMember,
     regenerateJoinCode, resetDemo: backend.reset ? resetDemo : undefined,
   };
