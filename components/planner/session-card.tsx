@@ -1,19 +1,22 @@
-import { CalendarClock, GripVertical, MapPin, Users } from "lucide-react";
+import { CalendarClock, GripVertical, MapPin, Pencil, Users } from "lucide-react";
 
 import { isMeetingSlot } from "@/lib/planner/constants";
 import { countChildren, groupClusters, isVisibleFor, meetingParticipants, sessionTeacherIds } from "@/lib/planner/logic";
 import { describeReassignments } from "@/lib/planner/reassign";
+import { KIND_LABEL, relativeTime } from "@/lib/planner/changes";
 import { subjectsOf } from "@/lib/planner/logic";
 import { subjectStyles } from "@/lib/planner/subjects";
 import { SubjectIcon } from "@/components/planner/subject-icon";
-import type { Child, Group, Session, Teacher } from "@/lib/planner/types";
+import type { ChangeEntry, Child, Group, Session, Teacher } from "@/lib/planner/types";
 
 const STATUS_LABEL: Record<Session["status"], string> = {
   planned: "Geplant", open: "Offen", done: "Erledigt", carried: "Übertragen",
 };
 
-export function SessionCard({ session, groups, teachers, kids = [], viewerId = "all", expanded = false, showDragHandle = false }: {
+export function SessionCard({ session, groups, teachers, kids = [], viewerId = "all", expanded = false, showDragHandle = false, change }: {
   session: Session;
+  /** ungesehene Änderung einer anderen Person an dieser Lektion */
+  change?: ChangeEntry;
   groups: Group[];
   kids?: Child[];
   teachers: Teacher[];
@@ -40,6 +43,7 @@ export function SessionCard({ session, groups, teachers, kids = [], viewerId = "
           {showDragHandle && <span className="card-drag-handle" aria-hidden="true"><GripVertical /></span>}
           <span className="meeting-icon" aria-hidden="true"><CalendarClock /></span>
           <strong>{session.title}</strong>
+          {change && <ChangeMark change={change} />}
           {session.status !== "planned" && <span className="status-pill">{STATUS_LABEL[session.status]}</span>}
         </div>
         {session.focus && <p>{session.focus}</p>}
@@ -65,6 +69,7 @@ export function SessionCard({ session, groups, teachers, kids = [], viewerId = "
         {showDragHandle && <span className="card-drag-handle" aria-hidden="true"><GripVertical /></span>}
         <SubjectIcon subjects={subjects} size={expanded ? "md" : "sm"} />
         <strong>{session.title}</strong>
+        {change && <ChangeMark change={change} />}
         {session.homework.trim() && <span className="hw-pill" title={`Hausaufgaben: ${session.homework}`}>HA</span>}
         {(session.reassignments?.length ?? 0) > 0 && <span className="hw-pill is-reassign" title={`Umgeteilt: ${describeReassignments(session.reassignments, kids, groups).join(", ")}`}>↔ {session.reassignments!.length}</span>}
         {session.status !== "planned" && <span className="status-pill">{STATUS_LABEL[session.status]}</span>}
@@ -119,4 +124,14 @@ export function SessionCard({ session, groups, teachers, kids = [], viewerId = "
       {expanded && session.room && <div className="room-line"><MapPin size={14} />{session.room}</div>}
     </div>
   );
+}
+
+/** Wichtig: Text-Badge „verschoben · MM“; klein: Stift mit Tooltip „MM, vor 5 Min.“ */
+function ChangeMark({ change }: { change: ChangeEntry }) {
+  const who = change.authorName || "jemand";
+  const when = relativeTime(change.createdAt);
+  if (change.importance === "major") {
+    return <span className={`change-badge kind-${change.kind}`} title={`${change.summary} – ${who}, ${when}`}>{KIND_LABEL[change.kind]} · {who.split(" ")[0]}</span>;
+  }
+  return <span className="change-dot" title={`${change.summary} – ${who}, ${when}`} aria-label={`Geändert von ${who}, ${when}`}><Pencil size={11} /></span>;
 }

@@ -6,13 +6,15 @@ import { CalendarPlus, Clock3, MessageSquareText, Plus, Users } from "lucide-rea
 import { SessionCard } from "@/components/planner/session-card";
 import { BREAK_AFTER, DAYS, PERIOD_LABEL, PERIOD_STARTS, SLOTS } from "@/lib/planner/constants";
 import { addDays, parseIsoDate } from "@/lib/planner/dates";
-import type { Child, DayKey, Group, Session, Teacher, WeekDays } from "@/lib/planner/types";
+import type { ChangeEntry, Child, DayKey, Group, Session, Teacher, WeekDays } from "@/lib/planner/types";
 
 const dateFmt = new Intl.DateTimeFormat("de-CH", { day: "2-digit", month: "2-digit" });
 
-export function WeekGrid({ sessions, weekDays, weekStart, groups, teachers, kids = [], viewerId, onOpen, onDayHeaderClick, onMove }: {
+export function WeekGrid({ sessions, weekDays, weekStart, groups, teachers, kids = [], highlights, viewerId, onOpen, onDayHeaderClick, onMove }: {
   sessions: Session[];
   kids?: Child[];
+  /** ungesehene Änderungen anderer je Lektion */
+  highlights?: Map<string, ChangeEntry>;
   weekDays: WeekDays;
   weekStart: string;
   groups: Group[];
@@ -82,10 +84,11 @@ export function WeekGrid({ sessions, weekDays, weekStart, groups, teachers, kids
                 {DAYS.map((day) => {
                   const item = sessions.find((session) => session.day === day.id && session.slot === slotIndex);
                   const isTarget = dropTarget?.day === day.id && dropTarget.slot === slotIndex;
+                  const change = item ? highlights?.get(item.id) : undefined;
                   return (
                     <button
                       type="button"
-                      className={`lesson-cell ${isMeeting ? "meeting-cell" : ""} ${item?.id === draggedId ? "is-dragging" : ""} ${isTarget ? `drop-${dropTarget.edge}` : ""}`}
+                      className={`lesson-cell ${isMeeting ? "meeting-cell" : ""} ${item?.id === draggedId ? "is-dragging" : ""} ${isTarget ? `drop-${dropTarget.edge}` : ""} ${change ? `is-changed-${change.importance}` : ""}`}
                       key={`${day.id}-${slotIndex}`}
                       draggable={Boolean(item)}
                       onDragStart={(event) => {
@@ -103,7 +106,7 @@ export function WeekGrid({ sessions, weekDays, weekStart, groups, teachers, kids
                       aria-label={`${day.label}, ${slot.label}${item ? ": öffnen" : isMeeting ? ": Termin planen" : " planen"}`}
                     >
                       {item
-                        ? <SessionCard session={item} groups={groups} teachers={teachers} kids={kids} viewerId={viewerId} showDragHandle />
+                        ? <SessionCard session={item} groups={groups} teachers={teachers} kids={kids} viewerId={viewerId} showDragHandle change={change} />
                         : <span className="add-cell">{isMeeting ? <><CalendarPlus size={16} /> Termin</> : <><Plus size={16} /> Planen</>}</span>}
                     </button>
                   );

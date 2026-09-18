@@ -11,6 +11,7 @@ Digitale Wochenplanung für altersdurchmischte Klassen und Teamteaching an der S
 - **Kinder umteilen mit Prüfung** – pro Lektion oder Tag in eine andere Gruppe; freie Gruppen sind gesperrt, Doppelzuteilungen ausgeschlossen, Planungscheck warnt.
 - **Kinder-Dossier** – Verhaltensnotizen (positiv / Ermahnung / Notiz) pro Kind erfassen und im Dossier mit Verlauf und Zählern abrufen.
 - **Farben & Symbole je Fach** – 🇬🇧 Englisch, 🇫🇷 Französisch, 🔢 Mathe, 🌍 NMG … plus farbiger Rand, damit Lektionen im Raster sofort erkennbar sind.
+- **Änderungen sichtbar** – wer hat wann was geändert: wichtige Änderungen mit orangem Rahmen, kleine mit Stift-Symbol, Glocke „Was ist neu“ mit Liste.
 - **Wochenplan** – Lektionen pro Tag und Zeitfenster planen, per Drag & Drop (oder über den Knopf „Verschieben“ auf Tablets) verschieben, in die nächste freie Lektion übertragen und mit Status (geplant, offen, erledigt, übertragen) versehen.
 - **Tagesfokus** – Anwesenheit der Lehrpersonen, eine Tagesnotiz fürs ganze Team und bis zu zwei Sitzungen pro Tag festhalten.
 - **Vorlagen** – jedes neue Team startet mit „Stundenplan Kastanie SJ 26/27“ und „Projektwoche“. Die Koordination pflegt deren Bausteine, Standard-Anwesenheit und Tagesnotizen; neue Wochen entstehen mit einem Klick daraus (mit Vorschau für alle).

@@ -24,6 +24,20 @@ export type ChildNote = {
   notedOn: string;
   authorId: string | null;
 };
+export type ChangeKind = "added" | "removed" | "moved" | "edited" | "assigned" | "reassigned" | "day" | "group" | "meeting";
+/** Eintrag im Änderungsprotokoll: wer hat wann was geändert */
+export type ChangeEntry = {
+  id: string;
+  weekStart: string | null;
+  sessionId: string | null;
+  kind: ChangeKind;
+  importance: "minor" | "major";
+  summary: string;
+  authorId: string | null;
+  authorName: string;
+  /** ISO-Zeitpunkt */
+  createdAt: string;
+};
 export type Teacher = { id: string; name: string; initials: string; color: string; active: boolean; sortOrder: number };
 export type Assignment = {
   groupId: string;
@@ -97,6 +111,8 @@ export type PlannerSnapshot = {
   children: Child[];
   /** Verhaltensnotizen zu Kindern */
   childNotes: ChildNote[];
+  /** Änderungsprotokoll der letzten Tage */
+  changes: ChangeEntry[];
   templates: Template[];
   /** Lektionen aller Wochen und Vorlagen */
   sessions: Session[];
@@ -123,6 +139,7 @@ export type PersistOp =
   | { type: "upsertChildren"; rows: Child[] }
   | { type: "deleteChildren"; ids: string[] }
   | { type: "upsertChildNotes"; rows: ChildNote[] }
+  | { type: "upsertChanges"; rows: ChangeEntry[] }
   | { type: "deleteChildNotes"; ids: string[] }
   | { type: "upsertTeachers"; rows: Teacher[] }
   | { type: "upsertTemplates"; rows: Template[] }

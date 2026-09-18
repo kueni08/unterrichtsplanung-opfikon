@@ -152,7 +152,7 @@ delete from public.teams;
 select pg_temp.expect((select count(*) from public.sessions) + (select count(*) from public.team_members) = 0, 'Kaskadierendes Löschen');
 
 -- 6) Realtime-Publication enthält alle Tabellen
-select pg_temp.expect((select count(*) from pg_publication_tables where pubname = 'supabase_realtime') = 9, 'Realtime für 9 Tabellen aktiv (inkl. children, child_notes)');
+select pg_temp.expect((select count(*) from pg_publication_tables where pubname = 'supabase_realtime') = 10, 'Realtime für 10 Tabellen aktiv (inkl. children, child_notes, changes)');
 
 \echo 'Alle Datenbanktests bestanden.'
 
