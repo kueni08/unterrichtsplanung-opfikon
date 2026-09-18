@@ -528,6 +528,8 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     });
   }, [debounce, setSnapshot]);
 
+  const testMail = useCallback(async () => backend.testMail ? backend.testMail() : "Im Demo-Modus gibt es keine Mails.", [backend]);
+
   /** Eigene E-Mail-Benachrichtigung (nie / wichtige sofort / täglich) */
   const setNotify = useCallback((value: NotifyMode) => {
     const snap = get();
@@ -575,7 +577,7 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     snapshot, loadError, saveState, onlineUserIds, me, role, isCoordinator: role === "koordination",
     reload, flush,
     updateSession, addSession, removeSession, moveSession, swapSessions, replaceSession, appendSession, carryForward, createWeekFromTemplate, updateDay,
-    addChild, updateChild, removeChildren, assignChildren, importChildren, addChildNote, updateChildNote, removeChildNote, setNotify,
+    addChild, updateChild, removeChildren, assignChildren, importChildren, addChildNote, updateChildNote, removeChildNote, setNotify, testMail,
     updateGroup, addGroup, removeGroup, updateTeacher, addTeacher, updateTemplate, renameTeam, updateMember, removeMember,
     regenerateJoinCode, resetDemo: backend.reset ? resetDemo : undefined,
   };

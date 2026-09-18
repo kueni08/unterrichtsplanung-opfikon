@@ -270,6 +270,17 @@ export function createSupabaseBackend(client: SupabaseClient, teamId: string): P
       }
     },
 
+    async testMail() {
+      const { data, error } = await client.functions.invoke("notify-changes", { body: { mode: "test" } });
+      if (error) {
+        // Fehlermeldung der Funktion lesen (FunctionsHttpError trägt die Antwort)
+        const ctx = (error as { context?: Response }).context;
+        try { const body = ctx ? await ctx.json() : null; if (body?.error) return `Fehler: ${body.error}`; } catch { /* keine JSON-Antwort */ }
+        return "Fehler: Die Mail-Funktion ist nicht erreichbar.";
+      }
+      return data?.sent ? `Test-Mail an ${data.to} verschickt – bitte Posteingang (und Spam) prüfen.` : `Fehler: ${data?.error ?? "unbekannt"}`;
+    },
+
     subscribe({ onRemoteChange, onPresence, knowsId }, viewer) {
       const channel = client.channel(`wochenatelier:${teamId}`, { config: { presence: { key: viewer.userId } } });
       for (const table of TABLES) {

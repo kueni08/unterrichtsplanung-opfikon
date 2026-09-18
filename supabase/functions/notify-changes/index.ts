@@ -4,6 +4,7 @@
 //   POST { changeId }                 – von der App direkt nach einer wichtigen Änderung (JWT der angemeldeten Person);
 //                                       informiert Mitglieder mit Einstellung „sofort“ (ohne die verursachende Person).
 //   POST { mode: "daily", secret }    – vom Zeitplan (GitHub Actions); tägliche Zusammenfassung für Mitglieder mit „täglich“.
+//   POST { mode: "test" }             – Test-Mail an die eigene Adresse (JWT der angemeldeten Person).
 //
 // Secrets (Supabase-Dashboard → Edge Functions → Secrets):
 //   BREVO_API_KEY    API-Key von brevo.com (Gratis-Plan: 300 Mails/Tag, Absender muss in Brevo verifiziert sein)
@@ -113,6 +114,20 @@ async function notifyInstant(req: Request, changeId: string): Promise<Response> 
   return json({ sent });
 }
 
+/** Test-Mail an die aufrufende Person – prüft Secrets, Absender und Zustellung. */
+async function notifyTest(req: Request): Promise<Response> {
+  const auth = req.headers.get("Authorization") ?? "";
+  const asUser = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: auth } }, auth: { persistSession: false } });
+  const { data: userData } = await asUser.auth.getUser();
+  const caller = userData.user;
+  if (!caller?.email) return json({ error: "nicht angemeldet" }, 401);
+  if (!BREVO_API_KEY && !RESEND_API_KEY) return json({ error: "Kein Mail-Dienst eingerichtet (BREVO_API_KEY fehlt)." }, 500);
+  if (BREVO_API_KEY && !MAIL_FROM) return json({ error: "MAIL_FROM fehlt (in Brevo verifizierte Absenderadresse)." }, 500);
+  const ok = await sendMail(caller.email, "[Wochenatelier] Test-Mail", layout("Test", "Die Benachrichtigungen funktionieren",
+    `<p>Diese Test-Mail wurde von <strong>${esc(MAIL_FROM_NAME)} &lt;${esc(MAIL_FROM)}&gt;</strong> an ${esc(caller.email)} geschickt. Wichtige Änderungen anderer erreichen dich künftig genauso – je nach Einstellung sofort oder als tägliche Zusammenfassung.</p>`));
+  return ok ? json({ sent: 1, to: caller.email }) : json({ error: "Versand fehlgeschlagen – Details in den Funktions-Logs (Supabase → Edge Functions → notify-changes → Logs)." }, 502);
+}
+
 /** Tägliche Zusammenfassung: wichtige Änderungen der letzten 24 Stunden je Team (Aufruf per Zeitplan). */
 async function notifyDaily(secret: string): Promise<Response> {
   if (!DIGEST_SECRET || secret !== DIGEST_SECRET) return json({ error: "falsches Secret" }, 403);
@@ -143,6 +158,7 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { /* leer */ }
   try {
     if (body.mode === "daily") return await notifyDaily(body.secret ?? "");
+    if (body.mode === "test") return await notifyTest(req);
     if (body.changeId) return await notifyInstant(req, body.changeId);
     return json({ error: "changeId oder mode fehlt" }, 400);
   } catch (e) {
