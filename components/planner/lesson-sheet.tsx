@@ -25,6 +25,8 @@ const STATUS_OPTIONS: { value: SessionStatus; label: string }[] = [
   { value: "planned", label: "Geplant" },
   { value: "open", label: "Noch offen" },
   { value: "done", label: "Erledigt" },
+  /** wird nur angezeigt, wenn der Block als Fortsetzung übertragen wurde (nicht von Hand wählbar) */
+  { value: "carried", label: "Übertragen" },
 ];
 
 export function LessonSheet({ session, api, snapshot, isCoordinator, templateId, onRequestMove, onOpenSession, onOpenChange }: {
@@ -273,10 +275,11 @@ export function LessonSheet({ session, api, snapshot, isCoordinator, templateId,
             <div className="status-control">
               <span>Status</span>
               <div>
-                {STATUS_OPTIONS.map((option) => (
-                  <button type="button" key={option.value} className={session.status === option.value ? "active" : ""} onClick={() => patch({ status: option.value })}>{option.label}</button>
+                {STATUS_OPTIONS.filter((option) => option.value !== "carried" || session.status === "carried").map((option) => (
+                  <button type="button" key={option.value} className={session.status === option.value ? "active" : ""} disabled={option.value === "carried"} onClick={() => patch({ status: option.value })}>{option.label}</button>
                 ))}
               </div>
+              {session.status === "carried" && <small className="privacy-helper">Als Fortsetzung übertragen. „Geplant“ wählen, um die Markierung aufzuheben.</small>}
             </div>
           )}
           {!readOnly && (

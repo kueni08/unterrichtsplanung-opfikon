@@ -90,13 +90,17 @@ export function findFreeSlot(container: Session[], day: DayKey, from = 0, kind: 
  * Lektion über Mittag oder in den Abend rutscht.
  * Gibt nur die veränderten Blöcke zurück.
  */
-export function reorderSessions(container: Session[], sessionId: string, targetDay: DayKey, requestedSlot: number): { changed: Session[]; moved: boolean } {
+export type ReorderResult = { changed: Session[]; moved: boolean; /** warum nicht verschoben: falsche Art von Zeitfenster oder kein Platz */ reason?: "kind" | "full" };
+
+export function reorderSessions(container: Session[], sessionId: string, targetDay: DayKey, requestedSlot: number): ReorderResult {
   const dragged = container.find((s) => s.id === sessionId);
   const targetSlot = Math.max(0, Math.min(SLOTS.length - 1, requestedSlot));
   if (!dragged || (dragged.day === targetDay && dragged.slot === targetSlot)) return { changed: [], moved: false };
+  // Lektionen bleiben in Lektions-Zeitfenstern, Termine in Sitzungs-Zeitfenstern
+  if (slotKind(dragged.slot) !== slotKind(targetSlot)) return { changed: [], moved: false, reason: "kind" };
 
   // Positionen innerhalb der Spur (z. B. Lektionen 0,1,2,3,4,6,7 → 0..6)
-  const lane = slotsOfKind(slotKind(targetSlot));
+  const lane = slotsOfKind(slotKind(dragged.slot));
   const targetPos = lane.indexOf(targetSlot);
   const rest = container.filter((s) => s.id !== sessionId && s.day === targetDay && lane.includes(s.slot));
   const posOf = (s: Session) => lane.indexOf(s.slot);
@@ -123,7 +127,14 @@ export function reorderSessions(container: Session[], sessionId: string, targetD
   for (let i = targetPos - 1; i >= 0; i -= 1) if (!occupied.has(i)) { freeBefore = i; break; }
   if (freeBefore >= 0) return { changed: [...shift((pos) => pos > freeBefore && pos <= targetPos, -1), placed], moved: true };
 
-  return { changed: [], moved: false };
+  return { changed: [], moved: false, reason: "full" };
+}
+
+/** Nächstes Zeitfenster derselben Art nach `slot` (für „dahinter einfügen“); am Ende der Spur das letzte. */
+export function nextSlotOfSameKind(slot: number): number {
+  const lane = slotsOfKind(slotKind(slot));
+  const index = lane.indexOf(slot);
+  return lane[Math.min(index + 1, lane.length - 1)] ?? slot;
 }
 
 export function applyChanged(list: Session[], changed: Session[]): Session[] {

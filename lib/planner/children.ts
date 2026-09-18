@@ -52,10 +52,23 @@ const HEADER_GROUP = ["gruppe", "klasse", "group", "class"];
 
 const cell = (v: unknown) => (v == null ? "" : String(v)).trim();
 
+/** „Anna Muster“ → Anna/Muster, „Muster, Anna“ → Anna/Muster, „Anna-Lena Meier Huber“ → Anna-Lena Meier/Huber. */
+export function splitFullName(text: string): { firstName: string; lastName: string } {
+  const value = text.trim();
+  if (value.includes(",")) {
+    const [last, ...rest] = value.split(",");
+    return { firstName: rest.join(",").trim(), lastName: last.trim() };
+  }
+  const parts = value.split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return { firstName: parts[0] ?? "", lastName: "" };
+  return { firstName: parts.slice(0, -1).join(" "), lastName: parts[parts.length - 1] };
+}
+
 /**
  * Tabellenzeilen (Excel/CSV) in Kinder umwandeln. Erkennt Spalten über die Kopfzeile
  * (Vorname/Nachname/Name/Gruppe); ohne Kopfzeile gelten die ersten beiden Spalten als
- * Vor- und Nachname. Eine einzelne Spalte „Name“ wird am letzten Leerzeichen geteilt.
+ * Vor- und Nachname. Steht der ganze Name in einer Spalte („Anna Muster“, „Muster, Anna“),
+ * wird er in Vor- und Nachname geteilt – mit oder ohne Kopfzeile.
  */
 export function rowsToChildren(rows: unknown[][]): ImportedRow[] {
   if (rows.length === 0) return [];
@@ -73,10 +86,11 @@ export function rowsToChildren(rows: unknown[][]): ImportedRow[] {
     let firstName = first >= 0 ? cell(row[first]) : "";
     let lastName = last >= 0 ? cell(row[last]) : "";
     if (first < 0 && lastName) {
-      // nur eine Namensspalte: „Anna Muster“ → Vorname „Anna“, Nachname „Muster“
-      const parts = lastName.split(/\s+/);
-      firstName = parts.length > 1 ? parts.slice(0, -1).join(" ") : parts[0];
-      lastName = parts.length > 1 ? parts[parts.length - 1] : "";
+      // nur eine Namensspalte „Name“
+      ({ firstName, lastName } = splitFullName(lastName));
+    } else if (!hasHeader && firstName && !lastName && /[\s,]/.test(firstName)) {
+      // ohne Kopfzeile und nur eine belegte Spalte: „Anna Muster“ bzw. „Muster, Anna“
+      ({ firstName, lastName } = splitFullName(firstName));
     }
     if (!firstName && !lastName) continue;
     const entry: ImportedRow = { firstName, lastName };

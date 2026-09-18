@@ -1,12 +1,17 @@
 name: Tägliche Zusammenfassung per E-Mail
 
 # Ruft die Edge Function „notify-changes“ im Modus „daily“ auf: Mitglieder mit Einstellung
-# „täglich“ erhalten eine Mail mit den wichtigen Änderungen der letzten 24 Stunden.
+# „täglich“ erhalten eine Mail mit allen wichtigen Änderungen seit der letzten Zusammenfassung.
 # Voraussetzung: Repository-Secret DIGEST_SECRET (derselbe Wert wie das Supabase-Secret DIGEST_SECRET).
+#
+# GitHub-Zeitpläne kennen keine Sommer-/Winterzeit, darum zwei Aufrufe (15:00 und 16:00 UTC);
+# die Funktion verschickt nur beim Aufruf, der 17:00 Schweizer Zeit entspricht (DIGEST_HOUR).
+# Ein manueller Start („Run workflow“) verschickt sofort (force).
 
 on:
   schedule:
-    - cron: "0 15 * * 1-5"   # Mo–Fr 15:00 UTC = 17:00 Schweizer Sommerzeit (16:00 im Winter)
+    - cron: "0 15 * * 1-5"   # 17:00 MESZ (Sommer)
+    - cron: "0 16 * * 1-5"   # 17:00 MEZ (Winter)
   workflow_dispatch:
 
 permissions:
@@ -20,6 +25,7 @@ jobs:
       SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://gppbxybdteihpoawyxpy.supabase.co' }}
       SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_w6jOmcVIq-oaXK7eAraAJA_7uKW8dEr' }}
       DIGEST_SECRET: ${{ secrets.DIGEST_SECRET }}
+      FORCE: ${{ github.event_name == 'workflow_dispatch' }}
     steps:
       - name: Zusammenfassung auslösen
         run: |
@@ -29,7 +35,7 @@ jobs:
           fi
           code=$(curl -s -o /tmp/body -w '%{http_code}' -X POST \
             -H "apikey: $SUPABASE_PUBLISHABLE_KEY" -H "Authorization: Bearer $SUPABASE_PUBLISHABLE_KEY" -H "Content-Type: application/json" \
-            -d "{\"mode\":\"daily\",\"secret\":\"$DIGEST_SECRET\"}" \
+            -d "{\"mode\":\"daily\",\"secret\":\"$DIGEST_SECRET\",\"force\":$FORCE}" \
             "$SUPABASE_URL/functions/v1/notify-changes")
           echo "HTTP $code – $(cat /tmp/body)"
           [ "$code" = "200" ]

@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import type { PlannerBackend } from "@/lib/planner/backend";
 import { childShort, makeChild, mergeImport, syncGroupChildren, type ImportedRow } from "@/lib/planner/children";
-import { DAYS, SLOTS, TEACHER_PALETTE, GROUP_PALETTE, isMeetingSlot } from "@/lib/planner/constants";
+import { DAYS, SLOTS, TEACHER_PALETTE, GROUP_PALETTE, isMeetingSlot, slotKind } from "@/lib/planner/constants";
 import {
   applyChanged, carryForwardTarget, continuationTitle, defaultAssignments, emptyDays,
   findFreeSlot, makeSession, newId, pickFields, reorderSessions, sameContainer, sessionsIn, uniqueInitials, weekFromTemplate,
@@ -18,6 +18,7 @@ export type Container = { weekStart: string } | { templateId: string };
 const containerOf = (c: Container) => ("weekStart" in c ? { weekStart: c.weekStart, templateId: null } : { weekStart: null, templateId: c.templateId });
 const dayLabel = (day: DayKey) => DAYS.find((d) => d.id === day)?.label ?? day;
 const posLabel = (day: DayKey, slot: number) => `${DAYS.find((d) => d.id === day)?.short ?? day} ${SLOTS[slot]?.label ?? ""}`.trim();
+const KIND_MISMATCH = "Lektionen bleiben in Lektions-Zeitfenstern, Termine in Sitzungs-Zeitfenstern.";
 const FIELD_LABEL: Partial<Record<keyof Session, string>> = {
   title: "Titel", focus: "Stichworte", room: "Raum", notes: "Notizen", homework: "Hausaufgaben", nextTime: "Fürs nächste Mal",
   status: "Status", children: "Kinderzuordnung", wholeClass: "Alle Kinder",
@@ -110,13 +111,14 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
       });
   }, [backend, scheduleReload]);
 
-  const debounce = useCallback((key: string, makeOp: () => PersistOp | null, delay = 450) => {
+  const debounce = useCallback((key: string, makeOp: () => PersistOp | PersistOp[] | null, delay = 450) => {
     const existing = timers.current.get(key);
     if (existing) clearTimeout(existing.timer);
     const run = () => {
       timers.current.delete(key);
       const op = makeOp();
-      if (op) enqueue(op);
+      if (Array.isArray(op)) op.forEach(enqueue);
+      else if (op) enqueue(op);
     };
     setSaveState("saving");
     timers.current.set(key, { timer: setTimeout(run, delay), run });
@@ -132,24 +134,40 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
   }, [enqueue, setSnapshot]);
 
   /**
-   * Eintrag ins Änderungsprotokoll. Mit `merge` wird ein eigener Eintrag derselben Art zur selben
-   * Lektion aus den letzten 10 Minuten fortgeschrieben (Tippen erzeugt sonst Dutzende Einträge).
+   * Eintrag ins Änderungsprotokoll. Mit `merge` wird ein eigener Eintrag derselben Art und Wichtigkeit
+   * zur selben Lektion aus den letzten 10 Minuten fortgeschrieben (Tippen erzeugt sonst Dutzende Einträge);
+   * eine Funktion als `merge` grenzt zusätzlich ein (z. B. dieselbe Gruppe). Den Zeitpunkt setzt der Server
+   * (Geräteuhren weichen ab); lokal gilt bis zum nächsten Laden die eigene Uhr.
    */
-  const logChange = useCallback((entry: { kind: ChangeKind; importance: "minor" | "major"; summary: string; weekStart?: string | null; sessionId?: string | null }, merge = false) => {
+  const logChange = useCallback((entry: { kind: ChangeKind; importance: "minor" | "major"; summary: string; weekStart?: string | null; sessionId?: string | null }, merge: boolean | ((c: ChangeEntry) => boolean) = false) => {
     const snap = snapRef.current;
     if (!snap) return;
     const now = new Date().toISOString();
     const sessionId = entry.sessionId ?? null;
     const recent = merge
-      ? snap.changes.find((c) => c.authorId === viewer.userId && c.sessionId === sessionId && c.kind === entry.kind && c.weekStart === (entry.weekStart ?? null) && Date.now() - Date.parse(c.createdAt) < 10 * 60 * 1000)
+      ? snap.changes.find((c) =>
+        c.authorId === viewer.userId && c.sessionId === sessionId && c.kind === entry.kind && c.importance === entry.importance
+        && c.weekStart === (entry.weekStart ?? null) && Date.now() - Date.parse(c.createdAt) < 10 * 60 * 1000
+        && (typeof merge === "function" ? merge(c) : true))
       : undefined;
     const row: ChangeEntry = recent
-      ? { ...recent, summary: entry.summary, createdAt: now }
+      ? { ...recent, summary: entry.summary }
       : { id: newId(), weekStart: entry.weekStart ?? null, sessionId, kind: entry.kind, importance: entry.importance, summary: entry.summary, authorId: viewer.userId, authorName: viewer.displayName, createdAt: now };
     const changes = [row, ...snap.changes.filter((c) => c.id !== row.id)].slice(0, 400);
     setSnapshot({ ...snap, changes });
     enqueue({ type: "upsertChanges", rows: [row], notify: !recent && entry.importance === "major" });
   }, [enqueue, setSnapshot, viewer.userId, viewer.displayName]);
+
+  /**
+   * Beschreibung einer Lektion fürs Protokoll. Vorlagenbausteine werden als solche benannt und gelten
+   * als kleine Änderung (keine Sofort-Mail) – sie betreffen nur künftige Wochen.
+   */
+  const describe = (row: Pick<Session, "title" | "day" | "slot" | "weekStart" | "templateId">) => {
+    const snap = snapRef.current;
+    const template = row.templateId ? snap?.templates.find((t) => t.id === row.templateId) : null;
+    const prefix = row.templateId ? `Vorlage „${template?.name ?? "?"}“: ` : "";
+    return { prefix, importance: (row.templateId ? "minor" : "major") as "minor" | "major", name: `„${row.title}“ (${posLabel(row.day, row.slot)})` };
+  };
 
   // Laden, Realtime, Presence
   useEffect(() => {
@@ -207,11 +225,11 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
       const row = snapRef.current?.sessions.find((s) => s.id === id);
       if (row && fields.length) {
         const where = { weekStart: row.weekStart, sessionId: row.id };
-        const name = `„${row.title}“ (${posLabel(row.day, row.slot)})`;
-        if (fields.includes("assignments")) logChange({ ...where, kind: "assigned", importance: "major", summary: `Zuständigkeit/Gruppen in ${name} geändert` }, true);
-        if (fields.includes("reassignments")) logChange({ ...where, kind: "reassigned", importance: "major", summary: `Kinder in ${name} umgeteilt` }, true);
+        const { prefix, importance, name } = describe(row);
+        if (fields.includes("assignments")) logChange({ ...where, kind: "assigned", importance, summary: `${prefix}Zuständigkeit/Gruppen in ${name} geändert` }, true);
+        if (fields.includes("reassignments")) logChange({ ...where, kind: "reassigned", importance, summary: `${prefix}Kinder in ${name} umgeteilt` }, true);
         const minor = fields.filter((f) => f !== "assignments" && f !== "reassignments" && f !== "day" && f !== "slot").map((f) => FIELD_LABEL[f] ?? String(f));
-        if (minor.length) logChange({ ...where, kind: "edited", importance: "minor", summary: `${name}: ${[...new Set(minor)].join(", ")} geändert` }, true);
+        if (minor.length) logChange({ ...where, kind: "edited", importance: "minor", summary: `${prefix}${name}: ${[...new Set(minor)].join(", ")} geändert` }, true);
       }
       return row && fields.length ? { type: "patchSession", id, patch: pickFields(row, fields) } : null;
     });
@@ -222,8 +240,10 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     const where = containerOf(container);
     const list = sessionsIn(snap.sessions, where);
     const taken = list.some((s) => s.day === day && s.slot === preferredSlot);
-    const slot = taken ? findFreeSlot(list, day, 0) : preferredSlot;
-    if (slot < 0) { toast.error(`${dayLabel(day)} ist bereits voll belegt`); return null; }
+    const wantMeeting = isMeetingSlot(preferredSlot);
+    // freie Plätze nur in der gewünschten Spur suchen (Lektionen bzw. Sitzungs-Zeitfenster)
+    const slot = taken ? findFreeSlot(list, day, 0, slotKind(preferredSlot)) : preferredSlot;
+    if (slot < 0) { toast.error(`${dayLabel(day)}: ${wantMeeting ? "alle Sitzungs-Zeitfenster sind" : "alle Lektionen sind"} bereits belegt`); return null; }
     const ops: PersistOp[] = [];
     if (where.weekStart) snap = ensureWeek(snap, where.weekStart, ops);
     const fresh = isMeetingSlot(slot)
@@ -231,7 +251,8 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
       : makeSession({ ...where, day, slot, assignments: defaultAssignments(snap.groups, snap.teachers) });
     ops.push({ type: "upsertSessions", rows: [fresh] });
     commit({ ...snap, sessions: [...snap.sessions, fresh] }, ops);
-    logChange({ weekStart: fresh.weekStart, sessionId: fresh.id, kind: "added", importance: "major", summary: `${isMeetingSlot(slot) ? "Termin" : "Lektion"} am ${posLabel(day, slot)} angelegt` });
+    const { prefix, importance } = describe(fresh);
+    logChange({ weekStart: fresh.weekStart, sessionId: fresh.id, kind: "added", importance, summary: `${prefix}${isMeetingSlot(slot) ? "Termin" : "Lektion"} am ${posLabel(day, slot)} angelegt` });
     return fresh.id;
   }, [commit, logChange]);
 
@@ -242,7 +263,7 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     dirty.current.delete(`session:${id}`);
     const gone = snap.sessions.find((s) => s.id === id);
     commit({ ...snap, sessions: snap.sessions.filter((s) => s.id !== id) }, [{ type: "deleteSessions", ids: [id] }]);
-    if (gone) logChange({ weekStart: gone.weekStart, sessionId: null, kind: "removed", importance: "major", summary: `„${gone.title}“ (${posLabel(gone.day, gone.slot)}) entfernt` });
+    if (gone) { const { prefix, importance, name } = describe(gone); logChange({ weekStart: gone.weekStart, sessionId: null, kind: "removed", importance, summary: `${prefix}${name} entfernt` }); }
     toast.success("Block entfernt");
   }, [commit, logChange]);
 
@@ -252,14 +273,16 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     const session = snap.sessions.find((s) => s.id === id);
     if (!session) return false;
     const list = snap.sessions.filter((s) => s.weekStart === session.weekStart && s.templateId === session.templateId);
-    const { changed, moved } = reorderSessions(list, id, day, slot);
+    const { changed, moved, reason } = reorderSessions(list, id, day, slot);
     if (!moved) {
-      if (!(session.day === day && session.slot === slot)) toast.error("An diesem Tag ist kein freier Platz mehr vorhanden");
+      if (reason === "kind") toast.error(KIND_MISMATCH);
+      else if (reason === "full") toast.error("An diesem Tag ist kein freier Platz mehr vorhanden");
       return false;
     }
     commit({ ...snap, sessions: applyChanged(snap.sessions, changed) }, [{ type: "moveSessions", rows: changed }]);
     const others = changed.length > 1 ? ` (${changed.length - 1} weitere nachgerückt)` : "";
-    logChange({ weekStart: session.weekStart, sessionId: id, kind: "moved", importance: "major", summary: `„${session.title}“ von ${posLabel(session.day, session.slot)} nach ${posLabel(day, slot)} verschoben${others}` });
+    const { prefix, importance } = describe(session);
+    logChange({ weekStart: session.weekStart, sessionId: id, kind: "moved", importance, summary: `${prefix}„${session.title}“ von ${posLabel(session.day, session.slot)} nach ${posLabel(day, slot)} verschoben${others}` });
     toast.success(`Block auf ${dayLabel(day)}, ${SLOTS[Math.min(slot, SLOTS.length - 1)].time} Uhr verschoben`);
     return true;
   }, [commit, flush, logChange]);
@@ -271,11 +294,13 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     const a = snap.sessions.find((s) => s.id === idA);
     const b = snap.sessions.find((s) => s.id === idB);
     if (!a || !b || !sameContainer(a, b)) return false;
+    if (slotKind(a.slot) !== slotKind(b.slot)) { toast.error(KIND_MISMATCH); return false; }
     const changed = [{ ...a, day: b.day, slot: b.slot }, { ...b, day: a.day, slot: a.slot }];
     commit({ ...snap, sessions: applyChanged(snap.sessions, changed) }, [{ type: "moveSessions", rows: changed }]);
-    const text = `„${a.title}“ (${posLabel(a.day, a.slot)}) und „${b.title}“ (${posLabel(b.day, b.slot)}) getauscht`;
-    logChange({ weekStart: a.weekStart, sessionId: a.id, kind: "moved", importance: "major", summary: text });
-    logChange({ weekStart: b.weekStart, sessionId: b.id, kind: "moved", importance: "major", summary: text });
+    const { prefix, importance } = describe(a);
+    const text = `${prefix}„${a.title}“ (${posLabel(a.day, a.slot)}) und „${b.title}“ (${posLabel(b.day, b.slot)}) getauscht`;
+    logChange({ weekStart: a.weekStart, sessionId: a.id, kind: "moved", importance, summary: text });
+    logChange({ weekStart: b.weekStart, sessionId: b.id, kind: "moved", importance, summary: text });
     toast.success("Blöcke getauscht");
     return true;
   }, [commit, flush, logChange]);
@@ -287,10 +312,12 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     const a = snap.sessions.find((s) => s.id === id);
     const target = snap.sessions.find((s) => s.id === targetId);
     if (!a || !target || !sameContainer(a, target)) return false;
+    if (slotKind(a.slot) !== slotKind(target.slot)) { toast.error(KIND_MISMATCH); return false; }
     const moved = { ...a, day: target.day, slot: target.slot };
     const sessions = applyChanged(snap.sessions.filter((s) => s.id !== targetId), [moved]);
     commit({ ...snap, sessions }, [{ type: "deleteSessions", ids: [targetId] }, { type: "moveSessions", rows: [moved] }]);
-    logChange({ weekStart: a.weekStart, sessionId: a.id, kind: "moved", importance: "major", summary: `„${target.title}“ (${posLabel(target.day, target.slot)}) durch „${a.title}“ ersetzt` });
+    const { prefix, importance } = describe(a);
+    logChange({ weekStart: a.weekStart, sessionId: a.id, kind: "moved", importance, summary: `${prefix}„${target.title}“ (${posLabel(target.day, target.slot)}) durch „${a.title}“ ersetzt` });
     toast.success(`„${target.title}“ ersetzt`);
     return true;
   }, [commit, flush, logChange]);
@@ -305,12 +332,14 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     const a = snap.sessions.find((s) => s.id === id);
     const target = snap.sessions.find((s) => s.id === targetId);
     if (!a || !target || !sameContainer(a, target)) return false;
+    if (slotKind(a.slot) !== slotKind(target.slot)) { toast.error(KIND_MISMATCH); return false; }
     const focus = [target.focus.trim(), `+ ${a.title}${a.focus.trim() ? ` (${a.focus.trim()})` : ""}`].filter(Boolean).join(" · ");
     const notes = [target.notes.trim(), a.notes.trim() ? `— Aus „${a.title}“ übernommen —\n${a.notes.trim()}` : ""].filter(Boolean).join("\n\n");
     const patch: Partial<Session> = { focus, notes };
     const sessions = snap.sessions.filter((s) => s.id !== id).map((s) => (s.id === targetId ? { ...s, ...patch } : s));
     commit({ ...snap, sessions }, [{ type: "patchSession", id: targetId, patch }, { type: "deleteSessions", ids: [id] }]);
-    logChange({ weekStart: target.weekStart, sessionId: target.id, kind: "moved", importance: "major", summary: `„${a.title}“ in „${target.title}“ (${posLabel(target.day, target.slot)}) aufgenommen` });
+    const { prefix, importance } = describe(target);
+    logChange({ weekStart: target.weekStart, sessionId: target.id, kind: "moved", importance, summary: `${prefix}„${a.title}“ in „${target.title}“ (${posLabel(target.day, target.slot)}) aufgenommen` });
     toast.success(`„${a.title}“ in „${target.title}“ aufgenommen`);
     return true;
   }, [commit, flush, logChange]);
@@ -399,14 +428,37 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
   }, [commit]);
 
   const removeGroup = useCallback((id: string) => {
+    flush();
     const snap = get();
+    const group = snap.groups.find((g) => g.id === id);
     // zugeordnete Kinder zurück in die Grundliste
     const orphaned = snap.children.filter((c) => c.groupId === id).map((c) => ({ ...c, groupId: null }));
     const ops: PersistOp[] = [{ type: "deleteGroup", id }];
     if (orphaned.length) ops.push({ type: "upsertChildren", rows: orphaned });
     const children = snap.children.map((c) => orphaned.find((o) => o.id === c.id) ?? c);
-    commit({ ...snap, groups: snap.groups.filter((g) => g.id !== id), children }, ops);
-  }, [commit]);
+    // Verweise in Lektionen (Zuständigkeit, Zusammenlegung, Umteilungen) entfernen – sonst zeigen sie ins Leere
+    const sessions = snap.sessions.map((s) => {
+      const assignments = s.assignments.filter((a) => a.groupId !== id).map((a) => (a.withGroupId === id ? { ...a, withGroupId: undefined } : a));
+      const reassignments = (s.reassignments ?? []).filter((r) => r.groupId !== id);
+      const changed = assignments.length !== s.assignments.length || assignments.some((a, i) => a !== s.assignments[i]) || reassignments.length !== (s.reassignments ?? []).length;
+      if (!changed) return s;
+      const patch: Partial<Session> = { assignments, reassignments };
+      ops.push({ type: "patchSession", id: s.id, patch });
+      return { ...s, ...patch };
+    });
+    const weeks = { ...snap.weeks };
+    for (const [weekStart, days] of Object.entries(snap.weeks)) {
+      for (const d of DAYS) {
+        const list = days[d.id].reassignments ?? [];
+        const kept = list.filter((r) => r.groupId !== id);
+        if (kept.length === list.length) continue;
+        weeks[weekStart] = { ...weeks[weekStart], [d.id]: { ...weeks[weekStart][d.id], reassignments: kept } };
+        ops.push({ type: "patchWeekDay", weekStart, day: d.id, patch: { reassignments: kept } });
+      }
+    }
+    commit({ ...snap, groups: snap.groups.filter((g) => g.id !== id), children, sessions, weeks }, ops);
+    logChange({ kind: "group", importance: "major", summary: `Gruppe „${group?.name ?? "?"}“ entfernt` });
+  }, [commit, flush, logChange]);
 
   /** Kinderliste ändern und den Kürzel-Spiegel der Gruppen nachführen. */
   const commitChildren = useCallback((snap: PlannerSnapshot, children: Child[], ops: PersistOp[]) => {
@@ -434,12 +486,23 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
       if (patch.short !== undefined) next.short = patch.short.trim().slice(0, 6);
       return next;
     });
-    const row = children.find((c) => c.id === id);
-    if (!row) return;
-    commitChildren(snap, children, [{ type: "upsertChildren", rows: [row] }]);
-  }, [commitChildren]);
+    if (!children.some((c) => c.id === id)) return;
+    // sofort anzeigen (inkl. Kürzel-Spiegel der Gruppen), aber gesammelt speichern – nicht pro Tastendruck
+    const changedGroups = syncGroupChildren(snap.groups, children);
+    setSnapshot({ ...snap, children, groups: snap.groups.map((g) => changedGroups.find((c) => c.id === g.id) ?? g) });
+    debounce(`child:${id}`, () => {
+      const latest = snapRef.current;
+      const row = latest?.children.find((c) => c.id === id);
+      if (!latest || !row) return null;
+      const ops: PersistOp[] = [{ type: "upsertChildren", rows: [row] }];
+      const mirrored = latest.groups.filter((g) => g.id === row.groupId || g.id === snap.children.find((c) => c.id === id)?.groupId);
+      if (mirrored.length) ops.push({ type: "upsertGroups", rows: mirrored });
+      return ops;
+    });
+  }, [debounce, setSnapshot]);
 
   const removeChildren = useCallback((ids: string[]) => {
+    for (const id of ids) { const t = timers.current.get(`child:${id}`); if (t) { clearTimeout(t.timer); timers.current.delete(`child:${id}`); } }
     const snap = get();
     const set = new Set(ids);
     commitChildren({ ...snap, childNotes: snap.childNotes.filter((n) => !set.has(n.childId)) }, snap.children.filter((c) => !set.has(c.id)), [{ type: "deleteChildren", ids }]);
@@ -461,7 +524,8 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     if (!rows.length) return;
     commitChildren(snap, children, [{ type: "upsertChildren", rows }]);
     const group = snap.groups.find((g) => g.id === groupId);
-    logChange({ kind: "group", importance: "major", summary: `Gruppe „${group?.name ?? "?"}“: Kinderzuordnung geändert` }, true);
+    const summary = `Gruppe „${group?.name ?? "?"}“: Kinderzuordnung geändert`;
+    logChange({ kind: "group", importance: "major", summary }, (c) => c.summary === summary);
   }, [commitChildren, logChange]);
 
   const addChildNote = useCallback((childId: string, kind: NoteKind, note: string, notedOn: string): string => {
@@ -476,10 +540,16 @@ export function usePlanner(backend: PlannerBackend, viewer: { userId: string; di
     const row = snap.childNotes.find((n) => n.id === id);
     if (!row) return;
     const next = { ...row, ...patch };
-    commit({ ...snap, childNotes: snap.childNotes.map((n) => (n.id === id ? next : n)) }, [{ type: "upsertChildNotes", rows: [next] }]);
-  }, [commit]);
+    setSnapshot({ ...snap, childNotes: snap.childNotes.map((n) => (n.id === id ? next : n)) });
+    debounce(`note:${id}`, () => {
+      const latest = snapRef.current?.childNotes.find((n) => n.id === id);
+      return latest ? { type: "upsertChildNotes", rows: [latest] } : null;
+    });
+  }, [debounce, setSnapshot]);
 
   const removeChildNote = useCallback((id: string) => {
+    const t = timers.current.get(`note:${id}`);
+    if (t) { clearTimeout(t.timer); timers.current.delete(`note:${id}`); }
     const snap = get();
     commit({ ...snap, childNotes: snap.childNotes.filter((n) => n.id !== id) }, [{ type: "deleteChildNotes", ids: [id] }]);
   }, [commit]);

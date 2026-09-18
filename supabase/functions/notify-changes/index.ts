@@ -3,7 +3,10 @@
 // Aufrufe:
 //   POST { changeId }                 – von der App direkt nach einer wichtigen Änderung (JWT der angemeldeten Person);
 //                                       informiert Mitglieder mit Einstellung „sofort“ (ohne die verursachende Person).
-//   POST { mode: "daily", secret }    – vom Zeitplan (GitHub Actions); tägliche Zusammenfassung für Mitglieder mit „täglich“.
+//   POST { mode: "daily", secret, force? } – vom Zeitplan (GitHub Actions); tägliche Zusammenfassung für Mitglieder mit „täglich“
+//                                       (alles Wichtige seit der letzten Zusammenfassung) und Nachlieferung für „sofort“,
+//                                       falls der Sofortversand fehlgeschlagen ist. Läuft nur um DIGEST_HOUR Uhr Schweizer Zeit
+//                                       (der Zeitplan ruft zu zwei UTC-Zeiten auf, Sommer-/Winterzeit); `force` übergeht die Prüfung.
 //   POST { mode: "test" }             – Test-Mail an die eigene Adresse (JWT der angemeldeten Person).
 //
 // Secrets (Supabase-Dashboard → Edge Functions → Secrets):
@@ -13,6 +16,7 @@
 //   RESEND_API_KEY   Alternative zu Brevo (Resend braucht eine verifizierte Domain für fremde Empfänger)
 //   APP_URL          optional, Standard https://kueni08.github.io/unterrichtsplanung-opfikon/
 //   DIGEST_SECRET    Pflicht für die tägliche Zusammenfassung (derselbe Wert wie das GitHub-Secret)
+//   DIGEST_HOUR      optional, Stunde (Europe/Zurich) der täglichen Zusammenfassung, Standard 17
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -24,6 +28,7 @@ const MAIL_FROM = Deno.env.get("MAIL_FROM") ?? (BREVO_API_KEY ? "" : "onboarding
 const MAIL_FROM_NAME = Deno.env.get("MAIL_FROM_NAME") ?? "Wochenatelier";
 const APP_URL = Deno.env.get("APP_URL") ?? "https://kueni08.github.io/unterrichtsplanung-opfikon/";
 const DIGEST_SECRET = Deno.env.get("DIGEST_SECRET") ?? "";
+const DIGEST_HOUR = Number(Deno.env.get("DIGEST_HOUR") ?? "17");
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -32,7 +37,7 @@ const CORS = {
 };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
-type Change = { id: string; team_id: string; week_start: string | null; session_id: string | null; kind: string; importance: string; summary: string; author_id: string | null; author_name: string; created_at: string; notified_at: string | null };
+type Change = { id: string; team_id: string; week_start: string | null; session_id: string | null; kind: string; importance: string; summary: string; author_id: string | null; author_name: string; created_at: string; notified_at: string | null; digested_at: string | null };
 type Member = { user_id: string; display_name: string; notify: string };
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
@@ -46,16 +51,29 @@ async function emailOf(userId: string): Promise<string | null> {
   return data.user?.email ?? null;
 }
 
-async function sendMail(to: string, subject: string, html: string): Promise<boolean> {
+type SendResult = { ok: boolean; /** Kurzbeschreibung des Fehlers (Dienst, Status, Antwort) */ error?: string };
+
+/** Antwort eines Mail-Dienstes lesbar zusammenfassen (für Logs und die Test-Mail). */
+async function describeFailure(service: string, res: Response): Promise<string> {
+  const text = (await res.text()).replace(/\s+/g, " ").trim().slice(0, 300);
+  const known = res.status === 401 && /unrecognised IP|authorised_ips/i.test(text)
+    ? " – Brevo blockiert die Anfrage wegen der IP-Beschränkung: in Brevo unter Security → Authorised IPs die Beschränkung ausschalten (die Funktion läuft auf wechselnden IPs)."
+    : "";
+  return `${service} ${res.status}: ${text}${known}`;
+}
+
+async function sendMail(to: string, subject: string, html: string): Promise<SendResult> {
   if (BREVO_API_KEY) {
-    if (!MAIL_FROM) { console.error("MAIL_FROM fehlt (in Brevo verifizierte Absenderadresse)"); return false; }
+    if (!MAIL_FROM) { const error = "MAIL_FROM fehlt (in Brevo verifizierte Absenderadresse)"; console.error(error); return { ok: false, error }; }
     const res = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: { "api-key": BREVO_API_KEY, "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ sender: { name: MAIL_FROM_NAME, email: MAIL_FROM }, to: [{ email: to }], subject, htmlContent: html }),
     });
-    if (!res.ok) console.error("Brevo:", res.status, await res.text());
-    return res.ok;
+    if (res.ok) return { ok: true };
+    const error = await describeFailure("Brevo", res);
+    console.error(error);
+    return { ok: false, error };
   }
   if (RESEND_API_KEY) {
     const res = await fetch("https://api.resend.com/emails", {
@@ -63,11 +81,29 @@ async function sendMail(to: string, subject: string, html: string): Promise<bool
       headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({ from: `${MAIL_FROM_NAME} <${MAIL_FROM}>`, to: [to], subject, html }),
     });
-    if (!res.ok) console.error("Resend:", res.status, await res.text());
-    return res.ok;
+    if (res.ok) return { ok: true };
+    const error = await describeFailure("Resend", res);
+    console.error(error);
+    return { ok: false, error };
   }
-  console.warn("Kein Mail-Dienst konfiguriert (BREVO_API_KEY oder RESEND_API_KEY) – keine Mail verschickt");
-  return false;
+  const error = "Kein Mail-Dienst konfiguriert (BREVO_API_KEY oder RESEND_API_KEY) – keine Mail verschickt";
+  console.warn(error);
+  return { ok: false, error };
+}
+
+/** Änderungen an Mitglieder schicken (ohne die jeweils verursachende Person); zählt gelungene und fehlgeschlagene Mails. */
+async function sendChanges(members: Member[], teamName: string, subject: string, title: string, changes: Change[]): Promise<{ sent: number; failed: number }> {
+  let sent = 0;
+  let failed = 0;
+  for (const m of members) {
+    const mine = changes.filter((c) => c.author_id !== m.user_id);
+    if (mine.length === 0) continue;
+    const to = await emailOf(m.user_id);
+    if (!to) continue;
+    const { ok } = await sendMail(to, subject, layout(teamName, title, `<ul style="padding-left:18px;margin:0">${mine.map(line).join("")}</ul>`));
+    if (ok) sent += 1; else failed += 1;
+  }
+  return { sent, failed };
 }
 
 function layout(teamName: string, title: string, body: string): string {
@@ -103,15 +139,10 @@ async function notifyInstant(req: Request, changeId: string): Promise<Response> 
   const { data: members } = await admin.from("team_members").select("user_id, display_name, notify").eq("team_id", change.team_id).eq("notify", "instant").neq("user_id", caller.id);
   const { data: team } = await admin.from("teams").select("name").eq("id", change.team_id).maybeSingle();
   const teamName = (team?.name as string) ?? "Team";
-  let sent = 0;
-  for (const m of (members ?? []) as Member[]) {
-    const to = await emailOf(m.user_id);
-    if (!to) continue;
-    const ok = await sendMail(to, `[Wochenatelier] ${change.summary.slice(0, 90)}`, layout(teamName, "Wichtige Änderung im Wochenplan", `<ul style="padding-left:18px;margin:0">${line(change)}</ul>`));
-    if (ok) sent += 1;
-  }
-  await admin.from("changes").update({ notified_at: new Date().toISOString() }).eq("id", change.id);
-  return json({ sent });
+  const { sent, failed } = await sendChanges((members ?? []) as Member[], teamName, `[Wochenatelier] ${change.summary.slice(0, 90)}`, "Wichtige Änderung im Wochenplan", [change]);
+  // Nur als verschickt markieren, wenn kein Versand fehlgeschlagen ist – sonst liefert die tägliche Zusammenfassung nach
+  if (failed === 0) await admin.from("changes").update({ notified_at: new Date().toISOString() }).eq("id", change.id);
+  return json({ sent, failed });
 }
 
 /** Test-Mail an die aufrufende Person – prüft Secrets, Absender und Zustellung. */
@@ -123,41 +154,62 @@ async function notifyTest(req: Request): Promise<Response> {
   if (!caller?.email) return json({ error: "nicht angemeldet" }, 401);
   if (!BREVO_API_KEY && !RESEND_API_KEY) return json({ error: "Kein Mail-Dienst eingerichtet (BREVO_API_KEY fehlt)." }, 500);
   if (BREVO_API_KEY && !MAIL_FROM) return json({ error: "MAIL_FROM fehlt (in Brevo verifizierte Absenderadresse)." }, 500);
-  const ok = await sendMail(caller.email, "[Wochenatelier] Test-Mail", layout("Test", "Die Benachrichtigungen funktionieren",
+  const { ok, error } = await sendMail(caller.email, "[Wochenatelier] Test-Mail", layout("Test", "Die Benachrichtigungen funktionieren",
     `<p>Diese Test-Mail wurde von <strong>${esc(MAIL_FROM_NAME)} &lt;${esc(MAIL_FROM)}&gt;</strong> an ${esc(caller.email)} geschickt. Wichtige Änderungen anderer erreichen dich künftig genauso – je nach Einstellung sofort oder als tägliche Zusammenfassung.</p>`));
-  return ok ? json({ sent: 1, to: caller.email }) : json({ error: "Versand fehlgeschlagen – Details in den Funktions-Logs (Supabase → Edge Functions → notify-changes → Logs)." }, 502);
+  return ok ? json({ sent: 1, to: caller.email }) : json({ error: `Versand fehlgeschlagen. ${error ?? ""}`.trim() }, 502);
 }
 
-/** Tägliche Zusammenfassung: wichtige Änderungen der letzten 24 Stunden je Team (Aufruf per Zeitplan). */
-async function notifyDaily(secret: string): Promise<Response> {
+/** Aktuelle Stunde in der Schweiz (0–23). */
+function swissHour(now = new Date()): number {
+  return Number(new Intl.DateTimeFormat("de-CH", { hour: "numeric", hourCycle: "h23", timeZone: "Europe/Zurich" }).format(now));
+}
+
+/**
+ * Tägliche Zusammenfassung (Aufruf per Zeitplan): alle wichtigen Änderungen, die noch in keiner
+ * Zusammenfassung waren (`digested_at` leer) – unabhängig vom Wochenende oder von Verzögerungen des
+ * Zeitplans. Zusätzlich Nachlieferung an „sofort“-Mitglieder für Änderungen, deren Sofortversand
+ * fehlgeschlagen ist (`notified_at` leer). Höchstens 7 Tage zurück, damit nach Pausen kein Rückstau kommt.
+ */
+async function notifyDaily(secret: string, force: boolean): Promise<Response> {
   if (!DIGEST_SECRET || secret !== DIGEST_SECRET) return json({ error: "falsches Secret" }, 403);
-  const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-  const { data: members } = await admin.from("team_members").select("team_id, user_id, display_name, notify").eq("notify", "daily");
+  if (!force && swissHour() !== DIGEST_HOUR) return json({ skipped: `nicht ${DIGEST_HOUR} Uhr (Schweizer Zeit: ${swissHour()} Uhr)` });
+  const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+  const { data: members } = await admin.from("team_members").select("team_id, user_id, display_name, notify").in("notify", ["daily", "instant"]);
   const byTeam = new Map<string, Member[]>();
   for (const m of (members ?? []) as (Member & { team_id: string })[]) byTeam.set(m.team_id, [...(byTeam.get(m.team_id) ?? []), m]);
   let sent = 0;
+  let failed = 0;
   for (const [teamId, list] of byTeam) {
-    const { data: changes } = await admin.from("changes").select("*").eq("team_id", teamId).eq("importance", "major").gte("created_at", since).order("created_at", { ascending: false }).limit(50);
+    const { data: rows } = await admin.from("changes").select("*").eq("team_id", teamId).eq("importance", "major").gte("created_at", since)
+      .or("digested_at.is.null,notified_at.is.null").order("created_at", { ascending: false }).limit(100);
+    const changes = (rows ?? []) as Change[];
     const { data: team } = await admin.from("teams").select("name").eq("id", teamId).maybeSingle();
-    for (const m of list) {
-      const mine = ((changes ?? []) as Change[]).filter((c) => c.author_id !== m.user_id);
-      if (mine.length === 0) continue;
-      const to = await emailOf(m.user_id);
-      if (!to) continue;
-      const ok = await sendMail(to, `[Wochenatelier] ${mine.length} wichtige Änderung${mine.length === 1 ? "" : "en"} heute`, layout((team?.name as string) ?? "Team", "Tägliche Zusammenfassung", `<ul style="padding-left:18px;margin:0">${mine.map(line).join("")}</ul>`));
-      if (ok) sent += 1;
+    const teamName = (team?.name as string) ?? "Team";
+    const now = new Date().toISOString();
+
+    const daily = changes.filter((c) => !c.digested_at);
+    if (daily.length) {
+      const r = await sendChanges(list.filter((m) => m.notify === "daily"), teamName, `[Wochenatelier] ${daily.length} wichtige Änderung${daily.length === 1 ? "" : "en"}`, "Tägliche Zusammenfassung", daily);
+      sent += r.sent; failed += r.failed;
+      if (r.failed === 0) await admin.from("changes").update({ digested_at: now }).in("id", daily.map((c) => c.id));
+    }
+    const missed = changes.filter((c) => !c.notified_at);
+    if (missed.length) {
+      const r = await sendChanges(list.filter((m) => m.notify === "instant"), teamName, `[Wochenatelier] ${missed.length} wichtige Änderung${missed.length === 1 ? "" : "en"} (Nachlieferung)`, "Nachgelieferte Änderungen", missed);
+      sent += r.sent; failed += r.failed;
+      if (r.failed === 0) await admin.from("changes").update({ notified_at: now }).in("id", missed.map((c) => c.id));
     }
   }
-  return json({ sent });
+  return json({ sent, failed });
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "POST erwartet" }, 405);
-  let body: { changeId?: string; mode?: string; secret?: string } = {};
+  let body: { changeId?: string; mode?: string; secret?: string; force?: boolean } = {};
   try { body = await req.json(); } catch { /* leer */ }
   try {
-    if (body.mode === "daily") return await notifyDaily(body.secret ?? "");
+    if (body.mode === "daily") return await notifyDaily(body.secret ?? "", body.force === true);
     if (body.mode === "test") return await notifyTest(req);
     if (body.changeId) return await notifyInstant(req, body.changeId);
     return json({ error: "changeId oder mode fehlt" }, 400);

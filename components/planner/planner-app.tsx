@@ -21,6 +21,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { usePlanner } from "@/hooks/use-planner";
 import type { PlannerBackend } from "@/lib/planner/backend";
 import { weekStartFor, isoWeekNumber, parseIsoDate, addDays } from "@/lib/planner/dates";
+import { slotKind } from "@/lib/planner/constants";
 import { countChildren, emptyDays, initialsFrom, planningWarnings, sessionsIn } from "@/lib/planner/logic";
 import { reassignmentWarnings } from "@/lib/planner/reassign";
 import { highlightsBySession, readLastSeen, writeLastSeen } from "@/lib/planner/changes";
@@ -91,7 +92,13 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
   if (!snapshot) return <Splash />;
   const since = lastSeen ?? readLastSeen(snapshot.team.id, userId);
   const highlights = highlightsBySession(snapshot.changes, since, userId);
-  const markSeen = () => { const now = new Date().toISOString(); writeLastSeen(snapshot.team.id, userId, now); setLastSeen(now); };
+  // „Gesehen bis“ = Zeitpunkt des neuesten bekannten Eintrags (Serverzeit), nicht die eigene Geräteuhr
+  const markSeen = () => {
+    const newest = snapshot.changes.reduce((max, c) => (c.createdAt > max ? c.createdAt : max), "");
+    const seen = newest || new Date().toISOString();
+    writeLastSeen(snapshot.team.id, userId, seen);
+    setLastSeen(seen);
+  };
 
   // Wer die Koordinationsrolle verliert, landet nicht auf einem leeren Admin-Tab
   const activeTab = tab === "admin" && !api.isCoordinator ? "week" : tab;
@@ -137,6 +144,8 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
   const requestMove = (sessionId: string, day: DayKey, slot: number) => {
     const session = snapshot.sessions.find((s) => s.id === sessionId);
     if (!session) return;
+    // andere Art von Zeitfenster: moveSession meldet den Grund, kein Dialog nötig
+    if (slotKind(session.slot) !== slotKind(slot)) { api.moveSession(sessionId, day, slot); return; }
     const target = snapshot.sessions.find((s) => s.id !== sessionId && s.weekStart === session.weekStart && s.templateId === session.templateId && s.day === day && s.slot === slot);
     if (!target) { api.moveSession(sessionId, day, slot); return; }
     setMoveConflict({ session, target, day, slot });

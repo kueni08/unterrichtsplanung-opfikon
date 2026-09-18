@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { childShort, makeChild, mergeImport, parseDelimited, rowsToChildren, syncGroupChildren } from "./children.ts";
+import { childShort, makeChild, mergeImport, parseDelimited, rowsToChildren, splitFullName, syncGroupChildren } from "./children.ts";
 import type { Child, Group } from "./types.ts";
 
 const groups: Group[] = [
@@ -47,4 +47,21 @@ test("syncGroupChildren: spiegelt Kürzel nur in Gruppen mit Kindern aus der Sta
   const g4 = { ...groups[1], children: "AM, BK" };
   const after = syncGroupChildren([groups[0], g4], kids.map((c) => ({ ...c, groupId: null })));
   assert.deepEqual(after.map((g) => [g.id, g.children]), [["g4", ""]]);
+});
+
+test("rowsToChildren: ganzer Name in einer Spalte wird auch ohne Kopfzeile geteilt", () => {
+  assert.deepEqual(rowsToChildren(parseDelimited(["Anna Muster", "Beat Meier"].join(String.fromCharCode(10)))),
+    [{ firstName: "Anna", lastName: "Muster" }, { firstName: "Beat", lastName: "Meier" }]);
+  assert.deepEqual(rowsToChildren([["Name", "Klasse"], ["Muster, Anna", "3a"]]),
+    [{ firstName: "Anna", lastName: "Muster", group: "3a" }]);
+  assert.deepEqual(rowsToChildren([["Anna-Lena Meier Huber"]]),
+    [{ firstName: "Anna-Lena Meier", lastName: "Huber" }]);
+  // ein einzelnes Wort bleibt Vorname
+  assert.deepEqual(rowsToChildren([["Ben"]]), [{ firstName: "Ben", lastName: "" }]);
+});
+
+test("splitFullName: Komma-Form und Leerzeichen-Form", () => {
+  assert.deepEqual(splitFullName("Muster, Anna"), { firstName: "Anna", lastName: "Muster" });
+  assert.deepEqual(splitFullName("  Anna   Muster "), { firstName: "Anna", lastName: "Muster" });
+  assert.deepEqual(splitFullName(""), { firstName: "", lastName: "" });
 });
