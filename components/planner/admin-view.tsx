@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { DAYS, GROUP_PALETTE, SLOTS, tint } from "@/lib/planner/constants";
 import { isoDate } from "@/lib/planner/dates";
-import { daysFromTemplate, sessionsIn } from "@/lib/planner/logic";
+import { daysFromTemplate, sessionsIn, subjectsOf } from "@/lib/planner/logic";
+import { SubjectIcon } from "@/components/planner/subject-icon";
 import type { PlannerApi } from "@/hooks/use-planner";
 import type { DayKey, DayMeta, Group, PlannerSnapshot, Session, Teacher, WeekDays } from "@/lib/planner/types";
 
@@ -287,7 +288,7 @@ export function MiniTemplate({ sessions, groups, teachers, onOpen, readOnly = fa
                   style={item ? { borderLeftColor: accent, background: tint(accent, "16") } : undefined}
                   title={item ? `${item.title} · ${teachers.find((t) => t.id === item.assignments[0]?.teacherId)?.initials ?? ""}` : readOnly ? "frei" : "Block anlegen"}
                 >
-                  {item ? item.title : readOnly ? null : <Plus size={13} />}
+                  {item ? <><SubjectIcon subjects={subjectsOf(item)} /> {item.title}</> : readOnly ? null : <Plus size={13} />}
                 </button>
               );
             })}
