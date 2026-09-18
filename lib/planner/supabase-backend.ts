@@ -232,9 +232,10 @@ export function createSupabaseBackend(client: SupabaseClient, teamId: string): P
           if (op.ids.length) check(await client.from("child_notes").delete().in("id", op.ids));
           return;
         case "upsertChanges":
+          // created_at setzt die Datenbank (Geräteuhren weichen ab); beim Fortschreiben bleibt der ursprüngliche Zeitpunkt
           check(await client.from("changes").upsert(op.rows.map((c) => ({
             id: c.id, team_id: teamId, week_start: c.weekStart, session_id: c.sessionId, kind: c.kind, importance: c.importance,
-            summary: c.summary.slice(0, 300), author_id: c.authorId, author_name: c.authorName.slice(0, 120), created_at: c.createdAt,
+            summary: c.summary.slice(0, 300), author_id: c.authorId, author_name: c.authorName.slice(0, 120),
           }))));
           if (op.notify) {
             // E-Mail-Benachrichtigung anstossen; Fehler (z. B. Funktion nicht eingerichtet) bremsen die App nicht

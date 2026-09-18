@@ -4,8 +4,9 @@ import { Fragment, useState, type DragEvent } from "react";
 import { CalendarPlus, Clock3, MessageSquareText, Plus, Users } from "lucide-react";
 
 import { SessionCard } from "@/components/planner/session-card";
-import { BREAK_AFTER, DAYS, PERIOD_LABEL, PERIOD_STARTS, SLOTS } from "@/lib/planner/constants";
+import { BREAK_AFTER, DAYS, PERIOD_LABEL, PERIOD_STARTS, SLOTS, slotKind } from "@/lib/planner/constants";
 import { addDays, parseIsoDate } from "@/lib/planner/dates";
+import { nextSlotOfSameKind } from "@/lib/planner/logic";
 import type { ChangeEntry, Child, DayKey, Group, Session, Teacher, WeekDays } from "@/lib/planner/types";
 
 const dateFmt = new Intl.DateTimeFormat("de-CH", { day: "2-digit", month: "2-digit" });
@@ -30,9 +31,11 @@ export function WeekGrid({ sessions, weekDays, weekStart, groups, teachers, kids
 
   function dragOver(event: DragEvent<HTMLButtonElement>, day: DayKey, slot: number, occupied: boolean) {
     if (!draggedId) return;
+    const dragged = sessions.find((item) => item.id === draggedId);
+    // Lektionen nur in Lektions-Zeitfenster, Termine nur in Sitzungs-Zeitfenster: sonst kein Ablegen möglich
+    if (dragged && slotKind(dragged.slot) !== slotKind(slot)) { event.dataTransfer.dropEffect = "none"; setDropTarget(null); return; }
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
-    const dragged = sessions.find((item) => item.id === draggedId);
     let edge: "before" | "after" = "before";
     if (occupied && dragged?.day === day && dragged.slot !== slot) edge = dragged.slot < slot ? "after" : "before";
     else if (occupied) {
@@ -47,8 +50,10 @@ export function WeekGrid({ sessions, weekDays, weekStart, groups, teachers, kids
     const sessionId = event.dataTransfer.getData("application/x-lesson-id") || draggedId;
     if (!sessionId) { setDraggedId(null); setDropTarget(null); return; }
     const dragged = sessions.find((item) => item.id === sessionId);
+    if (dragged && slotKind(dragged.slot) !== slotKind(slot)) { setDraggedId(null); setDropTarget(null); return; }
     const edge = dropTarget?.day === day && dropTarget.slot === slot ? dropTarget.edge : "before";
-    const exactSlot = dragged?.day === day || !occupied || edge === "before" ? slot : Math.min(slot + 1, SLOTS.length - 1);
+    // „dahinter“ bleibt in derselben Spur (nach der 5. Lektion folgt die 6., nicht der Mittag)
+    const exactSlot = dragged?.day === day || !occupied || edge === "before" ? slot : nextSlotOfSameKind(slot);
     onMove(sessionId, day, exactSlot);
     setDraggedId(null);
     setDropTarget(null);

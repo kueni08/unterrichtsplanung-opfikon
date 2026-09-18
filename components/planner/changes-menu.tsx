@@ -72,7 +72,7 @@ export function ChangesMenu({ changes, since, viewerId, onSeen, onOpenSession, n
               <SelectContent>
                 <SelectItem value="none">nie</SelectItem>
                 <SelectItem value="instant">sofort</SelectItem>
-                <SelectItem value="daily">täglich um 17 Uhr</SelectItem>
+                <SelectItem value="daily">täglich (Mo–Fr, ca. 17 Uhr)</SelectItem>
               </SelectContent>
             </Select>
             {onTestMail && (

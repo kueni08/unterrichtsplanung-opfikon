@@ -105,14 +105,17 @@ Tabelle `changes` (Team, Woche, Lektion, Art, Wichtigkeit, Zusammenfassung, Pers
 
 ## E-Mail-Benachrichtigungen (Brevo)
 
-Jedes Mitglied stellt unter der Glocke „Was ist neu“ ein: **nie**, **sofort** (bei jeder wichtigen Änderung anderer) oder **täglich** (Zusammenfassung Mo–Fr um 17 Uhr). Gespeichert in `team_members.notify` (Funktion `set_notify`).
+Jedes Mitglied stellt unter der Glocke „Was ist neu“ ein: **nie**, **sofort** (bei jeder wichtigen Änderung anderer) oder **täglich** (Zusammenfassung Mo–Fr gegen 17 Uhr Schweizer Zeit). Gespeichert in `team_members.notify` (Funktion `set_notify`).
 
-Technik: Die App ruft nach einer wichtigen Änderung die Edge Function `notify-changes` auf (`supabase/functions/notify-changes/index.ts`). Sie prüft das JWT der aufrufenden Person, lädt den Eintrag über deren Rechte, ermittelt die Empfänger:innen mit „sofort“ (ohne die verursachende Person), holt die E-Mail-Adressen über die Auth-Admin-API und versendet über die Brevo-API (`/v3/smtp/email`). `changes.notified_at` verhindert Doppelversand. Die tägliche Zusammenfassung löst der Workflow `.github/workflows/daily-digest.yml` aus (Modus `daily`, abgesichert über `DIGEST_SECRET`).
+Technik: Die App ruft nach einer wichtigen Änderung die Edge Function `notify-changes` auf (`supabase/functions/notify-changes/index.ts`). Sie prüft das JWT der aufrufenden Person, lädt den Eintrag über deren Rechte, ermittelt die Empfänger:innen mit „sofort“ (ohne die verursachende Person), holt die E-Mail-Adressen über die Auth-Admin-API und versendet über die Brevo-API (`/v3/smtp/email`). `changes.notified_at` wird nur gesetzt, wenn alle Mails rausgingen; fehlgeschlagene Sofortmails liefert die nächste tägliche Zusammenfassung nach. Die tägliche Zusammenfassung löst der Workflow `.github/workflows/daily-digest.yml` aus (Modus `daily`, abgesichert über `DIGEST_SECRET`); sie enthält alles Wichtige, das noch in keiner Zusammenfassung war (`changes.digested_at`), also auch Änderungen vom Wochenende. Der Zeitplan ruft um 15:00 und 16:00 UTC auf, die Funktion verschickt nur um 17 Uhr Schweizer Zeit (`DIGEST_HOUR`, Sommer-/Winterzeit); ein manueller Start unter „Actions“ verschickt sofort.
+
+Änderungen an Vorlagenbausteinen werden als „Vorlage „…“: …“ protokolliert und gelten als kleine Änderung – sie lösen keine Sofort-Mail aus.
 
 Einrichtung (einmalig):
 1. Konto auf brevo.com (Gratis-Plan: 300 Mails/Tag). Unter *Senders & IP → Senders* eine Absenderadresse hinzufügen (z. B. die eigene Schul-Adresse, Name „Wochenatelier“) und per Bestätigungsmail verifizieren – keine DNS-Einträge nötig.
 2. Unter *SMTP & API → API Keys* einen Key erzeugen.
-3. Supabase-Dashboard → Edge Functions → Secrets: `BREVO_API_KEY`, `MAIL_FROM` (die verifizierte Absenderadresse), optional `MAIL_FROM_NAME` (Standard „Wochenatelier“), `DIGEST_SECRET` (beliebige lange Zeichenfolge), optional `APP_URL`.
+3. Supabase-Dashboard → Edge Functions → Secrets: `BREVO_API_KEY`, `MAIL_FROM` (die verifizierte Absenderadresse), optional `MAIL_FROM_NAME` (Standard „Wochenatelier“), `DIGEST_SECRET` (beliebige lange Zeichenfolge), optional `APP_URL`, optional `DIGEST_HOUR` (Standard 17).
+   In Brevo unter *Security → Autorisierte IP-Adressen* die Sperre für API-Schlüssel **deaktivieren** – die Funktion läuft auf wechselnden IP-Adressen und würde sonst mit „unrecognised IP address“ abgewiesen (die Test-Mail in der App zeigt diesen Fehler an).
 4. GitHub-Repo → Settings → Secrets → Actions: `DIGEST_SECRET` mit demselben Wert.
 5. Funktion deployen: `supabase functions deploy notify-changes --no-verify-jwt` (die Funktion prüft das JWT selbst; der Tages-Modus läuft über das Secret).
 

@@ -23,6 +23,7 @@ import {
   previousLessons,
   subjectsOf,
   mergeCandidates,
+  nextSlotOfSameKind,
   sessionTeacherIds,
   setAssignment,
   setParticipants,
@@ -547,6 +548,35 @@ test("reorderSessions: Verschieben einer Lektion verdrängt keinen Termin über 
   assert.equal(byId.get("x6")?.slot, 7);
   assert.equal(byId.get("a")?.slot, 4);
   assert.equal(byId.has("m"), false, "Termin bleibt unangetastet");
+});
+
+test("reorderSessions: Lektion lässt sich nicht in ein Sitzungs-Zeitfenster ziehen (und umgekehrt)", () => {
+  const lesson = makeSession("a", "mo", 4);
+  const meeting = makeSession("m", "mo", 5);
+  const container: Session[] = [lesson, meeting, makeSession("b", "di", 2)];
+  assert.deepEqual(reorderSessions(container, "a", "mo", 5), { changed: [], moved: false, reason: "kind" }, "Lektion auf Mittag");
+  assert.deepEqual(reorderSessions(container, "a", "di", 8), { changed: [], moved: false, reason: "kind" }, "Lektion auf Abend");
+  assert.deepEqual(reorderSessions(container, "m", "di", 2), { changed: [], moved: false, reason: "kind" }, "Termin auf Lektionsplatz");
+  const ok = reorderSessions(container, "m", "di", 9);
+  assert.equal(ok.moved, true, "Termin in anderes Sitzungs-Zeitfenster");
+  assert.equal(ok.changed[0].slot, 9);
+});
+
+test("reorderSessions: voller Tag meldet den Grund „full“", () => {
+  const lessons = slotsOfKind("lesson");
+  const container: Session[] = [makeSession("a", "mo", 0), ...lessons.map((slot) => makeSession(`di${slot}`, "di", slot))];
+  const result = reorderSessions(container, "a", "di", lessons[3]);
+  assert.equal(result.moved, false);
+  assert.equal(result.reason, "full");
+});
+
+test("nextSlotOfSameKind: „dahinter“ bleibt in der Spur – nach der 5. Lektion kommt die 6., nicht der Mittag", () => {
+  const lessons = slotsOfKind("lesson");
+  const meetings = slotsOfKind("meeting");
+  assert.equal(nextSlotOfSameKind(lessons[4]), lessons[5]);
+  assert.equal(nextSlotOfSameKind(lessons[lessons.length - 1]), lessons[lessons.length - 1], "letzte Lektion bleibt letzte");
+  assert.equal(nextSlotOfSameKind(meetings[0]), meetings[1]);
+  assert.equal(SLOTS[nextSlotOfSameKind(lessons[4])].kind, "lesson");
 });
 
 test("carryForwardTarget: Termine werden nur in Termin-Slots übertragen", () => {
