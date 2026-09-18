@@ -1,4 +1,4 @@
-// Edge Function „notify-changes“: verschickt E-Mails zu wichtigen Änderungen über Resend.
+// Edge Function „notify-changes“: verschickt E-Mails zu wichtigen Änderungen (Brevo, alternativ Resend).
 //
 // Aufrufe:
 //   POST { changeId }                 – von der App direkt nach einer wichtigen Änderung (JWT der angemeldeten Person);
@@ -6,8 +6,10 @@
 //   POST { mode: "daily", secret }    – vom Zeitplan (GitHub Actions); tägliche Zusammenfassung für Mitglieder mit „täglich“.
 //
 // Secrets (Supabase-Dashboard → Edge Functions → Secrets):
-//   RESEND_API_KEY   Pflicht – API-Key von resend.com
-//   RESEND_FROM      optional, Standard "Wochenatelier <onboarding@resend.dev>" (eigene Domain nach DNS-Verifizierung)
+//   BREVO_API_KEY    API-Key von brevo.com (Gratis-Plan: 300 Mails/Tag, Absender muss in Brevo verifiziert sein)
+//   MAIL_FROM        Absenderadresse – die in Brevo verifizierte Adresse (Pflicht bei Brevo)
+//   MAIL_FROM_NAME   optional, Standard "Wochenatelier"
+//   RESEND_API_KEY   Alternative zu Brevo (Resend braucht eine verifizierte Domain für fremde Empfänger)
 //   APP_URL          optional, Standard https://kueni08.github.io/unterrichtsplanung-opfikon/
 //   DIGEST_SECRET    Pflicht für die tägliche Zusammenfassung (derselbe Wert wie das GitHub-Secret)
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -15,8 +17,10 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY") ?? "";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
-const FROM = Deno.env.get("RESEND_FROM") ?? "Wochenatelier <onboarding@resend.dev>";
+const MAIL_FROM = Deno.env.get("MAIL_FROM") ?? (BREVO_API_KEY ? "" : "onboarding@resend.dev");
+const MAIL_FROM_NAME = Deno.env.get("MAIL_FROM_NAME") ?? "Wochenatelier";
 const APP_URL = Deno.env.get("APP_URL") ?? "https://kueni08.github.io/unterrichtsplanung-opfikon/";
 const DIGEST_SECRET = Deno.env.get("DIGEST_SECRET") ?? "";
 
@@ -42,14 +46,27 @@ async function emailOf(userId: string): Promise<string | null> {
 }
 
 async function sendMail(to: string, subject: string, html: string): Promise<boolean> {
-  if (!RESEND_API_KEY) { console.warn("RESEND_API_KEY fehlt – keine Mail verschickt"); return false; }
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: FROM, to: [to], subject, html }),
-  });
-  if (!res.ok) console.error("Resend:", res.status, await res.text());
-  return res.ok;
+  if (BREVO_API_KEY) {
+    if (!MAIL_FROM) { console.error("MAIL_FROM fehlt (in Brevo verifizierte Absenderadresse)"); return false; }
+    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: { "api-key": BREVO_API_KEY, "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ sender: { name: MAIL_FROM_NAME, email: MAIL_FROM }, to: [{ email: to }], subject, htmlContent: html }),
+    });
+    if (!res.ok) console.error("Brevo:", res.status, await res.text());
+    return res.ok;
+  }
+  if (RESEND_API_KEY) {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: `${MAIL_FROM_NAME} <${MAIL_FROM}>`, to: [to], subject, html }),
+    });
+    if (!res.ok) console.error("Resend:", res.status, await res.text());
+    return res.ok;
+  }
+  console.warn("Kein Mail-Dienst konfiguriert (BREVO_API_KEY oder RESEND_API_KEY) – keine Mail verschickt");
+  return false;
 }
 
 function layout(teamName: string, title: string, body: string): string {
