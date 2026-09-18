@@ -1,24 +1,26 @@
 "use client";
 
 import { Fragment } from "react";
-import { CalendarPlus, Clock3, MessageSquareText, Plus, Users } from "lucide-react";
+import { ArrowRightLeft, CalendarPlus, Clock3, MessageSquareText, Plus, Users } from "lucide-react";
 
+import { ReassignPanel } from "@/components/planner/reassign-panel";
 import { SessionCard } from "@/components/planner/session-card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { BREAK_AFTER, DAYS, PERIOD_LABEL, PERIOD_STARTS, SLOTS } from "@/lib/planner/constants";
 import { addDays, parseIsoDate } from "@/lib/planner/dates";
-import type { DayKey, DayMeta, Group, Meeting, Session, Teacher } from "@/lib/planner/types";
+import type { Child, DayKey, DayMeta, Group, Meeting, Session, Teacher } from "@/lib/planner/types";
 
 const dayDateFmt = new Intl.DateTimeFormat("de-CH", { day: "2-digit", month: "long" });
 
-export function DayView({ weekStart, selectedDay, onSelectDay, sessions, groups, teachers, dayMeta, disabled, viewerId, onOpenSession, onChangeDay }: {
+export function DayView({ weekStart, selectedDay, onSelectDay, sessions, groups, teachers, kids = [], dayMeta, disabled, viewerId, onOpenSession, onChangeDay }: {
   weekStart: string;
   selectedDay: DayKey;
   onSelectDay: (day: DayKey) => void;
   sessions: Session[];
   groups: Group[];
+  kids?: Child[];
   teachers: Teacher[];
   dayMeta: DayMeta;
   disabled: boolean;
@@ -53,7 +55,7 @@ export function DayView({ weekStart, selectedDay, onSelectDay, sessions, groups,
                 <button type="button" className={`timeline-row ${isMeeting ? "slot-meeting" : ""}`} onClick={() => onOpenSession(selectedDay, index)} disabled={disabled}>
                   <div className="timeline-time"><strong>{slot.time}–{slot.end}</strong><span>{slot.label}</span></div>
                   {item
-                    ? <SessionCard session={item} groups={groups} teachers={teachers} viewerId={viewerId} expanded />
+                    ? <SessionCard session={item} groups={groups} teachers={teachers} kids={kids} viewerId={viewerId} expanded />
                     : <div className="timeline-empty">{isMeeting ? <><CalendarPlus size={17} /> Freier Termin</> : <><Plus size={17} /> Freier Block</>}</div>}
                 </button>
                 {BREAK_AFTER[index] && <div className="timeline-break">{BREAK_AFTER[index]}</div>}
@@ -62,13 +64,13 @@ export function DayView({ weekStart, selectedDay, onSelectDay, sessions, groups,
           })}
         </div>
       </div>
-      <DaySidebar day={selectedDay} meta={dayMeta} teachers={teachers} onChange={onChangeDay} disabled={disabled} />
+      <DaySidebar day={selectedDay} meta={dayMeta} teachers={teachers} kids={kids} groups={groups} onChange={onChangeDay} disabled={disabled} />
     </section>
   );
 }
 
-function DaySidebar({ day, meta, teachers, onChange, disabled }: {
-  day: DayKey; meta: DayMeta; teachers: Teacher[]; onChange: (patch: Partial<DayMeta>) => void; disabled: boolean;
+function DaySidebar({ day, meta, teachers, kids, groups, onChange, disabled }: {
+  day: DayKey; meta: DayMeta; teachers: Teacher[]; kids: Child[]; groups: Group[]; onChange: (patch: Partial<DayMeta>) => void; disabled: boolean;
 }) {
   function updateMeeting(index: 0 | 1, patch: Partial<Meeting>) {
     const rows: Meeting[] = [meta.meetings[0] ?? { time: "", title: "" }, meta.meetings[1] ?? { time: "", title: "" }];
@@ -101,6 +103,12 @@ function DaySidebar({ day, meta, teachers, onChange, disabled }: {
         <div className="side-title"><MessageSquareText /><div><h3>Tagesnotiz</h3><p>Besonderheiten für das ganze Team</p></div></div>
         <Textarea disabled={disabled} value={meta.note} onChange={(e) => onChange({ note: e.target.value })} placeholder="z. B. Besuch, Raumwechsel, Absenzen …" rows={5} />
       </section>
+      {kids.some((c) => c.active) && (
+        <section className="side-panel reassign-day-panel">
+          <div className="side-title"><ArrowRightLeft /><div><h3>Kinder heute umteilen</h3><p>Gilt für alle Lektionen des Tages</p></div></div>
+          <ReassignPanel list={meta.reassignments} onChange={(next) => onChange({ reassignments: next })} kids={kids} groups={groups} day={meta} disabled={disabled} compact />
+        </section>
+      )}
       <section className="side-panel meetings-panel">
         <div className="side-title"><Clock3 /><div><h3>Sitzungen</h3><p>Bis zu zwei Termine pro Tag</p></div></div>
         {([0, 1] as const).map((index) => {

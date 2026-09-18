@@ -21,6 +21,9 @@ export function normalizeDays(raw: unknown, teachers: Teacher[]): WeekDays {
       meetings: Array.isArray(value.meetings)
         ? value.meetings.slice(0, 2).map((m) => ({ time: String(m?.time ?? ""), title: String(m?.title ?? "") }))
         : [],
+      ...(Array.isArray(value.reassignments) && value.reassignments.length
+        ? { reassignments: value.reassignments.filter((r) => r && typeof r.childId === "string" && typeof r.groupId === "string").map((r) => ({ childId: r.childId, groupId: r.groupId })) }
+        : {}),
     };
   }
   return base;
@@ -266,7 +269,7 @@ export function defaultAssignments(groups: Group[], teachers: Teacher[]): Assign
 
 export function cloneTemplateToWeek(templateSessions: Session[], weekStart: string): Session[] {
   return templateSessions.map((s) => ({
-    ...s, id: newId(), weekStart, templateId: null, status: "planned", notes: s.notes, homework: "", nextTime: "", assignments: s.assignments.map((a) => ({ ...a })),
+    ...s, id: newId(), weekStart, templateId: null, status: "planned", notes: s.notes, homework: "", nextTime: "", reassignments: [], assignments: s.assignments.map((a) => ({ ...a })),
   }));
 }
 

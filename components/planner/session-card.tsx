@@ -2,15 +2,17 @@ import { CalendarClock, GripVertical, MapPin, Users } from "lucide-react";
 
 import { isMeetingSlot } from "@/lib/planner/constants";
 import { countChildren, groupClusters, isVisibleFor, meetingParticipants, sessionTeacherIds } from "@/lib/planner/logic";
-import type { Group, Session, Teacher } from "@/lib/planner/types";
+import { describeReassignments } from "@/lib/planner/reassign";
+import type { Child, Group, Session, Teacher } from "@/lib/planner/types";
 
 const STATUS_LABEL: Record<Session["status"], string> = {
   planned: "Geplant", open: "Offen", done: "Erledigt", carried: "Übertragen",
 };
 
-export function SessionCard({ session, groups, teachers, viewerId = "all", expanded = false, showDragHandle = false }: {
+export function SessionCard({ session, groups, teachers, kids = [], viewerId = "all", expanded = false, showDragHandle = false }: {
   session: Session;
   groups: Group[];
+  kids?: Child[];
   teachers: Teacher[];
   viewerId?: string;
   expanded?: boolean;
@@ -58,6 +60,7 @@ export function SessionCard({ session, groups, teachers, viewerId = "all", expan
         {showDragHandle && <span className="card-drag-handle" aria-hidden="true"><GripVertical /></span>}
         <strong>{session.title}</strong>
         {session.homework.trim() && <span className="hw-pill" title={`Hausaufgaben: ${session.homework}`}>HA</span>}
+        {(session.reassignments?.length ?? 0) > 0 && <span className="hw-pill is-reassign" title={`Umgeteilt: ${describeReassignments(session.reassignments, kids, groups).join(", ")}`}>↔ {session.reassignments!.length}</span>}
         {session.status !== "planned" && <span className="status-pill">{STATUS_LABEL[session.status]}</span>}
       </div>
       {session.focus && <p>{session.focus}</p>}

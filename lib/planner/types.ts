@@ -40,6 +40,9 @@ export type Assignment = {
   withGroupId?: string;
 };
 
+/** Vorübergehende Umteilung eines Kindes in eine andere Gruppe (pro Tag oder pro Lektion) */
+export type Reassignment = { childId: string; groupId: string };
+
 export type Session = {
   id: string;
   /** ISO-Datum des Montags – gesetzt für Lektionen einer Woche */
@@ -57,13 +60,15 @@ export type Session = {
   /** Hinweis für die nächste Lektion in diesem Fach (erscheint dort automatisch als Rückblick) */
   nextTime: string;
   children: string;
+  /** Kinder, die in dieser Lektion einer anderen Gruppe zugeteilt sind */
+  reassignments?: Reassignment[];
   wholeClass: boolean;
   status: SessionStatus;
   assignments: Assignment[];
 };
 
 export type Meeting = { time: string; title: string };
-export type DayMeta = { attendance: string[]; note: string; meetings: Meeting[] };
+export type DayMeta = { attendance: string[]; note: string; meetings: Meeting[]; /** ganztägige Umteilungen */ reassignments?: Reassignment[] };
 export type WeekDays = Record<DayKey, DayMeta>;
 
 export type Template = {
