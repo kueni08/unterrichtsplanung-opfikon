@@ -65,6 +65,10 @@ In den gelben Zeitfenstern („Termin“) lassen sich Sitzungen, Elterngespräch
 - **Einladung versenden**: Im Termin (in einer konkreten Woche, nicht in einer Vorlage) gibt es den Bereich „Einladung versenden“. „Per E-Mail einladen“ öffnet im eigenen Mailprogramm einen fertigen Entwurf mit Datum, Zeit, Ort, Teilnehmenden und Traktanden; Empfänger:innen (z. B. Eltern) können vorher eingetragen werden. „Kalenderdatei (.ics)“ speichert den Termin als Datei, die sich in der Mail anhängen oder direkt in Outlook, Google Kalender oder Apple Kalender importieren lässt. Es werden keine Mails über die App selbst verschickt – der Versand läuft über das eigene Mailprogramm.
 - **Datenschutz**: Auch bei Elterngesprächen nur Kürzel verwenden (z. B. „Elterngespräch A04“). Eltern-Adressen werden nur für den Mail-Entwurf verwendet und nicht in der App gespeichert.
 
+### Farben und Symbole je Fach
+
+Jede Lektion trägt ein Symbol und eine Farbe ihres Fachs, damit sie im Raster schnell zu finden ist: 🇬🇧 Englisch, 🇫🇷 Französisch, 📖 Deutsch, 🔢 Mathe, 🌍 NMG, 🎵 Musik, 🎨 BG, ✂️ TTG, ⚽ Sport, 🏊 Schwimmen, 🕊️ RKE, 💻 M&I, 🧩 Projekt, 🛠️ Atelier, 🗣️ Klassenrat, 📝 Wochenplan, 🌱 Förderung. Die Zuordnung erfolgt über Stichwörter im Fachnamen („Mathe Kreis+“ zählt als Mathe); Lektionen mit mehreren Fächern zeigen bis zu zwei Symbole. Unbekannte Fächer erhalten ihre Anfangsbuchstaben und eine feste Farbe. Der farbige Rand links zeigt das Fach; bei Status „offen“, „erledigt“ oder „übertragen“ hat die Statusfarbe Vorrang.
+
 ### Persönliche Ansicht und Gesamtansicht
 
 Beim Start ist die persönliche Ansicht der angemeldeten Person gewählt: Eigene Lektionen (auch als Co-Lehrperson) und Lektionen mit der ganzen Klasse erscheinen vollständig, Lektionen anderer nur abgeschwächt mit Titel und dem Hinweis „nicht deine Lektion“. Über „Ansicht“ kann jede Person zur Gesamtansicht oder zur Ansicht einer anderen Lehrperson wechseln.

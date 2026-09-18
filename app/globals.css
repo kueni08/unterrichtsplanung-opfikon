@@ -435,3 +435,12 @@ button, input, textarea { font: inherit; } button { cursor: pointer; }
 .reassign-panel.is-compact .reassign-add { grid-template-columns: 1fr; }
 .reassign-message { margin: 0; font-size: 12px; line-height: 1.4; } .reassign-message.is-error { color: #b23a44; } .reassign-message.is-hint { color: #6b4a0e; }
 .reassign-dayinfo { margin: 0; padding: 6px 10px; border-radius: 8px; background: #f3e9d2; color: #5c3f07; font-size: 12px; }
+
+/* Fach-Symbole */
+.subject-icons { display: inline-flex; gap: 3px; flex: none; }
+.subject-icon { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; font-size: 12px; line-height: 1; }
+.subject-icon.is-letters { font-size: 9px; font-weight: 800; letter-spacing: .02em; }
+.subject-icon.is-flag { padding: 0; overflow: hidden; } .subject-icon.is-flag svg { width: 18px; height: 12px; border-radius: 2px; box-shadow: 0 0 0 1px #0002; }
+.subject-icons.size-md .subject-icon { width: 26px; height: 26px; font-size: 15px; border-radius: 8px; } .subject-icons.size-md .subject-icon.is-flag svg { width: 22px; height: 15px; }
+.mini-row button .subject-icons { vertical-align: middle; } .mini-row button .subject-icon { width: 14px; height: 14px; font-size: 9px; border-radius: 4px; background: transparent !important; } .mini-row button .subject-icon.is-flag svg { width: 13px; height: 9px; }
+.session-title-row { align-items: center; gap: 6px; }

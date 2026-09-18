@@ -3,6 +3,9 @@ import { CalendarClock, GripVertical, MapPin, Users } from "lucide-react";
 import { isMeetingSlot } from "@/lib/planner/constants";
 import { countChildren, groupClusters, isVisibleFor, meetingParticipants, sessionTeacherIds } from "@/lib/planner/logic";
 import { describeReassignments } from "@/lib/planner/reassign";
+import { subjectsOf } from "@/lib/planner/logic";
+import { subjectStyles } from "@/lib/planner/subjects";
+import { SubjectIcon } from "@/components/planner/subject-icon";
 import type { Child, Group, Session, Teacher } from "@/lib/planner/types";
 
 const STATUS_LABEL: Record<Session["status"], string> = {
@@ -23,7 +26,7 @@ export function SessionCard({ session, groups, teachers, kids = [], viewerId = "
   if (viewerId !== "all" && !isVisibleFor(session, viewerId)) {
     return (
       <div className={`session-card is-foreign ${isMeeting ? "meeting-card" : ""}`}>
-        <div className="session-title-row"><strong>{session.title}</strong></div>
+        <div className="session-title-row">{!isMeeting && <SubjectIcon subjects={subjectsOf(session)} />}<strong>{session.title}</strong></div>
         <p className="foreign-hint">{isMeeting ? "nicht dein Termin" : "nicht deine Lektion"}</p>
       </div>
     );
@@ -52,12 +55,15 @@ export function SessionCard({ session, groups, teachers, kids = [], viewerId = "
   }
 
   const clusters = groupClusters(session.assignments, groups);
+  const subjects = subjectsOf(session);
+  const subjectColor = subjectStyles(subjects, 1)[0]?.color ?? "#9aabc0";
   const subjectsDiffer = new Set(clusters.filter((c) => !c.assignment.off && c.assignment.subject).map((c) => c.assignment.subject)).size > 1;
 
   return (
-    <div className={`session-card ${expanded ? "expanded" : ""} status-${session.status}`} title={session.title}>
+    <div className={`session-card ${expanded ? "expanded" : ""} status-${session.status}`} title={session.title} style={session.status === "planned" ? { borderLeftColor: subjectColor } : undefined}>
       <div className="session-title-row">
         {showDragHandle && <span className="card-drag-handle" aria-hidden="true"><GripVertical /></span>}
+        <SubjectIcon subjects={subjects} size={expanded ? "md" : "sm"} />
         <strong>{session.title}</strong>
         {session.homework.trim() && <span className="hw-pill" title={`Hausaufgaben: ${session.homework}`}>HA</span>}
         {(session.reassignments?.length ?? 0) > 0 && <span className="hw-pill is-reassign" title={`Umgeteilt: ${describeReassignments(session.reassignments, kids, groups).join(", ")}`}>↔ {session.reassignments!.length}</span>}
