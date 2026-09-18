@@ -125,6 +125,17 @@ Wochenatelier kann wie eine App auf dem Home-Bildschirm liegen – ohne App-Stor
 
 Die App-Hülle bleibt danach auch ohne Internet erreichbar. Zum Anmelden und für den gemeinsamen Plan braucht es aber eine Verbindung, da alle Daten beim Team-Server liegen. Erscheint der Hinweis „Eine neue Version ist bereit“, einmal auf „Jetzt aktualisieren“ tippen.
 
+## Änderungen im Team sehen
+
+Alles, was jemand im Team ändert, wird protokolliert (wer, wann, was) und für die anderen hervorgehoben – eigene Änderungen nicht:
+
+- **Wichtige Änderungen** (Lektion verschoben, neu, entfernt, getauscht, übertragen; Zuständigkeit oder Gruppen geändert; Kinder umgeteilt; Anwesenheit geändert) bekommen im Wochenplan und Tagesfokus einen **orangen Rahmen** und ein Kennzeichen wie „verschoben · Hermine“.
+- **Kleine Änderungen** (Notizen, Stichworte, Raum, Status, Hausaufgaben) zeigen nur ein **kleines Stift-Symbol**; der Tooltip nennt Person und Zeitpunkt.
+- Die **Glocke** oben rechts zählt die Änderungen anderer seit dem letzten Besuch. Die Liste „Was ist neu“ zeigt wer, wann, was; ein Klick öffnet die betroffene Lektion. „Alles gesehen“ setzt die Markierungen zurück – pro Person und Gerät. Über „Alle Änderungen der letzten 14 Tage“ lässt sich die ganze Historie einsehen.
+- Im Lektions-Editor steht oben „Zuletzt geändert von …“.
+
+Benachrichtigungen per E-Mail sind vorbereitet, aber noch nicht aktiv (siehe Einrichtung).
+
 ## Demo-Modus
 
 Die Anwendung lässt sich ohne Konto und ohne Internetverbindung zum Server im Demo-Modus mit Beispieldaten ausprobieren. Die Demo-Daten werden nur lokal im Browser gespeichert und können jederzeit zurückgesetzt werden. Der Demo-Modus eignet sich zum Kennenlernen der Funktionen, nicht für die produktive Planung eines echten Teams.

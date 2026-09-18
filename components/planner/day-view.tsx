@@ -10,17 +10,18 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { BREAK_AFTER, DAYS, PERIOD_LABEL, PERIOD_STARTS, SLOTS } from "@/lib/planner/constants";
 import { addDays, parseIsoDate } from "@/lib/planner/dates";
-import type { Child, DayKey, DayMeta, Group, Meeting, Session, Teacher } from "@/lib/planner/types";
+import type { ChangeEntry, Child, DayKey, DayMeta, Group, Meeting, Session, Teacher } from "@/lib/planner/types";
 
 const dayDateFmt = new Intl.DateTimeFormat("de-CH", { day: "2-digit", month: "long" });
 
-export function DayView({ weekStart, selectedDay, onSelectDay, sessions, groups, teachers, kids = [], dayMeta, disabled, viewerId, onOpenSession, onChangeDay }: {
+export function DayView({ weekStart, selectedDay, onSelectDay, sessions, groups, teachers, kids = [], highlights, dayMeta, disabled, viewerId, onOpenSession, onChangeDay }: {
   weekStart: string;
   selectedDay: DayKey;
   onSelectDay: (day: DayKey) => void;
   sessions: Session[];
   groups: Group[];
   kids?: Child[];
+  highlights?: Map<string, ChangeEntry>;
   teachers: Teacher[];
   dayMeta: DayMeta;
   disabled: boolean;
@@ -49,13 +50,14 @@ export function DayView({ weekStart, selectedDay, onSelectDay, sessions, groups,
           {SLOTS.map((slot, index) => {
             const item = sessions.find((session) => session.day === selectedDay && session.slot === index);
             const isMeeting = slot.kind === "meeting";
+            const change = item ? highlights?.get(item.id) : undefined;
             return (
               <Fragment key={slot.time}>
                 {PERIOD_STARTS.has(index) && <div className={`timeline-period ${isMeeting ? "is-meeting" : ""}`}>{PERIOD_LABEL[slot.period]}</div>}
-                <button type="button" className={`timeline-row ${isMeeting ? "slot-meeting" : ""}`} onClick={() => onOpenSession(selectedDay, index)} disabled={disabled}>
+                <button type="button" className={`timeline-row ${isMeeting ? "slot-meeting" : ""} ${change ? `is-changed-${change.importance}` : ""}`} onClick={() => onOpenSession(selectedDay, index)} disabled={disabled}>
                   <div className="timeline-time"><strong>{slot.time}–{slot.end}</strong><span>{slot.label}</span></div>
                   {item
-                    ? <SessionCard session={item} groups={groups} teachers={teachers} kids={kids} viewerId={viewerId} expanded />
+                    ? <SessionCard session={item} groups={groups} teachers={teachers} kids={kids} viewerId={viewerId} expanded change={change} />
                     : <div className="timeline-empty">{isMeeting ? <><CalendarPlus size={17} /> Freier Termin</> : <><Plus size={17} /> Freier Block</>}</div>}
                 </button>
                 {BREAK_AFTER[index] && <div className="timeline-break">{BREAK_AFTER[index]}</div>}

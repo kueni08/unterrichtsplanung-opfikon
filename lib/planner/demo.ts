@@ -1,7 +1,7 @@
 import { TEACHER_PALETTE } from "./constants.ts";
 import { cloneTemplateToWeek, daysFromTemplate, deriveTitle, makeSession, newId, setParticipants, uniqueInitials } from "./logic.ts";
 import { addDays, isoDate, parseIsoDate } from "./dates.ts";
-import type { Assignment, ChildNote, DayKey, Group, PlannerSnapshot, Session, Teacher, Template, WeekDays } from "./types.ts";
+import type { Assignment, ChangeEntry, ChildNote, DayKey, Group, PlannerSnapshot, Session, Teacher, Template, WeekDays } from "./types.ts";
 
 /**
  * Standardinhalt gemäss „Vorlage Stundenplan Kastanie SJ26/27“.
@@ -199,6 +199,20 @@ const DEMO_CHILDREN: Record<string, string>[] = [
   { LL: "Luna Lovegood", CH: "Cho Chang", PA: "Padma Patil", TB: "Terry Boot", AG: "Anthony Goldstein", MC: "Michael Corner", ME: "Marietta Edgecombe", RC: "Roger Cornfoot", LT: "Lisa Turpin" },
 ];
 
+/** Beispiel-Änderungen anderer, damit Rahmen, Stift und „Was ist neu“ in der Demo sichtbar sind. */
+function demoChanges(week: Session[]): ChangeEntry[] {
+  const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60000).toISOString();
+  const find = (day: DayKey, slot: number) => week.find((s) => s.day === day && s.slot === slot);
+  const moved = find("di", 3); const edited = find("do", 2); const meeting = find("do", 8);
+  const hermine = { authorId: DEMO_USERS.lehrperson.userId, authorName: DEMO_NAMES.Nici };
+  const list: ChangeEntry[] = [];
+  if (moved) list.push({ id: newId(), weekStart: moved.weekStart, sessionId: moved.id, kind: "moved", importance: "major", summary: `„${moved.title}“ von Di 4. Lektion nach Di 3. Lektion verschoben`, createdAt: at(35), ...hermine });
+  if (edited) list.push({ id: newId(), weekStart: edited.weekStart, sessionId: edited.id, kind: "edited", importance: "minor", summary: `„${edited.title}“ (Do 2. Lektion): Notizen, Hausaufgaben geändert`, createdAt: at(120), ...hermine });
+  if (meeting) list.push({ id: newId(), weekStart: meeting.weekStart, sessionId: meeting.id, kind: "assigned", importance: "major", summary: `Teilnehmende in „${meeting.title}“ (Do Abend 1) geändert`, createdAt: at(26 * 60), ...hermine });
+  list.push({ id: newId(), weekStart: week[0]?.weekStart ?? null, sessionId: null, kind: "day", importance: "major", summary: "Anwesenheit am Mittwoch geändert", createdAt: at(3 * 60), ...hermine });
+  return list;
+}
+
 export function buildDemoSnapshot(weekStart: string): PlannerSnapshot {
   const content = buildStarterContent([], { demo: true });
   const teachers = content.teachers;
@@ -245,6 +259,7 @@ export function buildDemoSnapshot(weekStart: string): PlannerSnapshot {
     groups: content.groups,
     children,
     childNotes,
+    changes: demoChanges(week),
     templates: content.templates,
     sessions: [...content.sessions, ...week],
     weeks: { [weekStart]: days },

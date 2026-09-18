@@ -99,6 +99,12 @@ Alle Tabellen sind Teil der Supabase-Realtime-Publikation (`supabase_realtime`) 
 - Icons liegen in `public/icons/` (192, 512 und 512 maskable, erzeugt aus `public/icons/eule-app-icon.svg`).
 - Push-Benachrichtigungen sind nicht vorgesehen: Sie bräuchten einen eigenen Server, GitHub Pages liefert nur statische Dateien.
 
+## Änderungsprotokoll
+
+Tabelle `changes` (Team, Woche, Lektion, Art, Wichtigkeit, Zusammenfassung, Person, Zeitpunkt). Die App schreibt bei jeder Aktion einen Eintrag (`logChange` in `hooks/use-planner.ts`); Tipp-Änderungen an derselben Lektion werden innerhalb von 10 Minuten zu einem Eintrag zusammengefasst. Geladen werden die letzten 14 Tage (max. 400 Einträge). „Gesehen bis“ liegt pro Person und Gerät im localStorage.
+
+**E-Mail-Benachrichtigungen (optional, noch nicht aktiv):** Vorgesehen ist eine Supabase Edge Function, die per Database Webhook auf neue `changes`-Zeilen mit `importance = 'major'` reagiert und Mitglieder mit Einstellung „sofort“ bzw. per Zeitplan „täglich“ informiert; Versand über einen Mail-Dienst wie Resend (API-Key als Secret der Edge Function). Voraussetzungen: Mail-Dienst-Konto, Spalte `notify` in `team_members`, Einstellung im Admin/Profil.
+
 ## Pausieren im Gratis-Plan verhindern
 
 Supabase pausiert Gratis-Projekte nach 7 Tagen ohne Zugriffe (z. B. in den Ferien). Der Workflow `.github/workflows/keep-alive.yml` ruft deshalb alle zwei Tage eine harmlose REST-Abfrage mit dem öffentlichen Schlüssel auf – das zählt als Aktivität, und das Projekt bleibt wach. Zusätzlich kann er ein pausiertes Projekt automatisch wiederherstellen: Dafür unter Supabase → Account → Access Tokens ein Token erzeugen und im GitHub-Repo unter Settings → Secrets → Actions als `SUPABASE_ACCESS_TOKEN` hinterlegen. Ohne Token bleibt es beim Anstupsen; ein pausiertes Projekt wird dann von Hand im Dashboard gestartet (die App zeigt in diesem Fall einen entsprechenden Hinweis). Der Workflow lässt sich unter „Actions“ auch manuell auslösen.

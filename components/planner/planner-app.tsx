@@ -6,6 +6,7 @@ import { BookOpenCheck, CalendarDays, Check, CheckCheck, ChevronLeft, ChevronRig
 import { AdminView, MiniTemplate } from "@/components/planner/admin-view";
 import { DayView } from "@/components/planner/day-view";
 import { ChildrenView } from "@/components/planner/children-view";
+import { ChangesMenu } from "@/components/planner/changes-menu";
 import { HomeworkView } from "@/components/planner/homework-view";
 import { LessonSheet } from "@/components/planner/lesson-sheet";
 import { MoveDialog, type MoveConflict } from "@/components/planner/move-dialog";
@@ -22,6 +23,7 @@ import type { PlannerBackend } from "@/lib/planner/backend";
 import { weekStartFor, isoWeekNumber, parseIsoDate, addDays } from "@/lib/planner/dates";
 import { countChildren, emptyDays, initialsFrom, planningWarnings, sessionsIn } from "@/lib/planner/logic";
 import { reassignmentWarnings } from "@/lib/planner/reassign";
+import { highlightsBySession, readLastSeen, writeLastSeen } from "@/lib/planner/changes";
 import type { DayKey, Role } from "@/lib/planner/types";
 
 const weekLabelFmt = new Intl.DateTimeFormat("de-CH", { day: "2-digit", month: "short" });
@@ -67,6 +69,7 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
   const [templateOverride, setTemplateOverride] = useState<string | null>(null);
   const [sheetSessionId, setSheetSessionId] = useState<string | null>(null);
   const [moveConflict, setMoveConflict] = useState<MoveConflict | null>(null);
+  const [lastSeen, setLastSeen] = useState<string | null>(null);
   const [tourOpen, setTourOpen] = useState(() => initialTourOpen(userId));
 
   if (api.loadError) {
@@ -84,6 +87,9 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
 
   const snapshot = api.snapshot;
   if (!snapshot) return <Splash />;
+  const since = lastSeen ?? readLastSeen(snapshot.team.id, userId);
+  const highlights = highlightsBySession(snapshot.changes, since, userId);
+  const markSeen = () => { const now = new Date().toISOString(); writeLastSeen(snapshot.team.id, userId, now); setLastSeen(now); };
 
   // Wer die Koordinationsrolle verliert, landet nicht auf einem leeren Admin-Tab
   const activeTab = tab === "admin" && !api.isCoordinator ? "week" : tab;
@@ -156,6 +162,7 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
           </div>
         </div>
         <div className="header-meta">
+          <ChangesMenu changes={snapshot.changes} since={since} viewerId={userId} onSeen={markSeen} onOpenSession={(id) => { if (snapshot.sessions.some((s) => s.id === id)) setSheetSessionId(id); }} />
           <button type="button" className="help-button" onClick={() => setTourOpen(true)} aria-label="Kurze Einführung anzeigen"><HelpCircle size={18} /></button>
           <p className={`save-state save-${api.saveState}`}>{saveIcon} {saveLabel}</p>
           {mode === "team" && onlineTeachers.length > 0 && (
@@ -284,6 +291,7 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
                 groups={snapshot.groups}
                 teachers={snapshot.teachers}
                 kids={snapshot.children}
+                highlights={highlights}
                 viewerId={selectedView}
                 onOpen={openWeekCell}
                 onDayHeaderClick={handleDayHeaderClick}
@@ -302,6 +310,7 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
             groups={snapshot.groups}
             teachers={snapshot.teachers}
             kids={snapshot.children}
+            highlights={highlights}
             dayMeta={weekDays?.[selectedDay] ?? emptyDays(snapshot.teachers)[selectedDay]}
             disabled={!weekExists}
             viewerId={selectedView}

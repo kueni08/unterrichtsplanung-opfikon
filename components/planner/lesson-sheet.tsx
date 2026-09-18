@@ -15,6 +15,7 @@ import { SuggestInput, type Suggestion } from "@/components/ui/suggest-input";
 import { Textarea } from "@/components/ui/textarea";
 import { DAYS, SLOTS, isMeetingSlot, slotKind, tint } from "@/lib/planner/constants";
 import { addDays, parseIsoDate, isoDate } from "@/lib/planner/dates";
+import { latestChangeFor, relativeTime } from "@/lib/planner/changes";
 import { buildIcs, icsFileName, inviteBody, inviteDetails, mailtoLink } from "@/lib/planner/invite";
 import { countChildren, deriveTitle, meetingParticipants, mergeCandidates, roomSuggestions, setAssignment, setParticipants, subjectSuggestions } from "@/lib/planner/logic";
 import type { PlannerApi } from "@/hooks/use-planner";
@@ -57,6 +58,7 @@ export function LessonSheet({ session, api, snapshot, isCoordinator, templateId,
   const subjectOptions: Suggestion[] = subjectSuggestions(snapshot.sessions).map((value) => ({ value }));
   const roomOptions: Suggestion[] = roomSuggestions(snapshot.sessions).map((value) => ({ value }));
   const hasChildren = snapshot.children.some((c) => c.active);
+  const lastChange = latestChangeFor(snapshot.changes, session.id);
   const dayMeta = session.weekStart ? snapshot.weeks[session.weekStart]?.[session.day] ?? null : null;
 
   function patch(p: Partial<Session>) {
@@ -130,6 +132,7 @@ export function LessonSheet({ session, api, snapshot, isCoordinator, templateId,
           <SheetDescription>{isMeeting ? "Sitzung, Elterngespräch oder anderer Termin ausserhalb des Unterrichts." : "Die Wochenübersicht zeigt nur die wichtigsten Stichworte. Details bleiben hier gebündelt."}</SheetDescription>
         </SheetHeader>
         <div className="sheet-body">
+          {lastChange && <p className="last-change">Zuletzt geändert: <strong>{lastChange.authorName || "jemand"}</strong>, {relativeTime(lastChange.createdAt)} – {lastChange.summary}</p>}
           {readOnly && <div className="template-readonly-note"><CircleAlert size={15} /> Vorlagen pflegt die Koordination.</div>}
           <div className="field-stack"><Label htmlFor="title">{isMeeting ? "Titel" : "Titel / Fach"}</Label>{isMeeting
             ? <Input id="title" disabled={readOnly} value={session.title} onChange={(e) => patch({ title: e.target.value })} placeholder="z. B. Stufensitzung, Elterngespräch A04" />
