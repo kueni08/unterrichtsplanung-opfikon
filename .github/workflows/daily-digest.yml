@@ -1,0 +1,35 @@
+name: Tägliche Zusammenfassung per E-Mail
+
+# Ruft die Edge Function „notify-changes“ im Modus „daily“ auf: Mitglieder mit Einstellung
+# „täglich“ erhalten eine Mail mit den wichtigen Änderungen der letzten 24 Stunden.
+# Voraussetzung: Repository-Secret DIGEST_SECRET (derselbe Wert wie das Supabase-Secret DIGEST_SECRET).
+
+on:
+  schedule:
+    - cron: "0 15 * * 1-5"   # Mo–Fr 15:00 UTC = 17:00 Schweizer Sommerzeit (16:00 im Winter)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    if: ${{ vars.DIGEST_ENABLED != 'false' }}
+    env:
+      SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://gppbxybdteihpoawyxpy.supabase.co' }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_w6jOmcVIq-oaXK7eAraAJA_7uKW8dEr' }}
+      DIGEST_SECRET: ${{ secrets.DIGEST_SECRET }}
+    steps:
+      - name: Zusammenfassung auslösen
+        run: |
+          if [ -z "$DIGEST_SECRET" ]; then
+            echo "::warning::DIGEST_SECRET fehlt (Repository-Secret) – keine Zusammenfassung verschickt."
+            exit 0
+          fi
+          code=$(curl -s -o /tmp/body -w '%{http_code}' -X POST \
+            -H "apikey: $SUPABASE_PUBLISHABLE_KEY" -H "Authorization: Bearer $SUPABASE_PUBLISHABLE_KEY" -H "Content-Type: application/json" \
+            -d "{\"mode\":\"daily\",\"secret\":\"$DIGEST_SECRET\"}" \
+            "$SUPABASE_URL/functions/v1/notify-changes")
+          echo "HTTP $code – $(cat /tmp/body)"
+          [ "$code" = "200" ]

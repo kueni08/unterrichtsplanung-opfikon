@@ -6,18 +6,22 @@ import { Bell, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { KIND_LABEL, relativeTime, unseenChanges } from "@/lib/planner/changes";
-import type { ChangeEntry } from "@/lib/planner/types";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { ChangeEntry, NotifyMode } from "@/lib/planner/types";
 
 /**
  * „Was ist neu“: Glocke mit Zähler der Änderungen anderer seit dem letzten „Alles gesehen“,
  * Liste mit wer/wann/was, optional die ganze Historie der letzten Tage.
  */
-export function ChangesMenu({ changes, since, viewerId, onSeen, onOpenSession }: {
+export function ChangesMenu({ changes, since, viewerId, onSeen, onOpenSession, notify, onNotifyChange }: {
   changes: ChangeEntry[];
   since: string;
   viewerId: string;
   onSeen: () => void;
   onOpenSession?: (sessionId: string) => void;
+  /** eigene E-Mail-Einstellung (nur im Team-Modus) */
+  notify?: NotifyMode;
+  onNotifyChange?: (value: NotifyMode) => void;
 }) {
   const [showAll, setShowAll] = useState(false);
   const unseen = unseenChanges(changes, since, viewerId);
@@ -57,6 +61,19 @@ export function ChangesMenu({ changes, since, viewerId, onSeen, onOpenSession }:
           {list.length === 0 && <li className="changes-empty">Nichts Neues – alles auf dem aktuellen Stand.</li>}
         </ol>
         <button type="button" className="changes-toggle" onClick={() => setShowAll((v) => !v)}>{showAll ? "Nur Neues zeigen" : "Alle Änderungen der letzten 14 Tage"}</button>
+        {onNotifyChange && (
+          <div className="notify-setting">
+            <span>E-Mail bei wichtigen Änderungen</span>
+            <Select value={notify ?? "none"} onValueChange={(v) => onNotifyChange(v as NotifyMode)}>
+              <SelectTrigger aria-label="E-Mail-Benachrichtigung"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">nie</SelectItem>
+                <SelectItem value="instant">sofort</SelectItem>
+                <SelectItem value="daily">täglich um 17 Uhr</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );

@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { PlannerBackend } from "./backend.ts";
 import { makeSession, normalizeDays } from "./logic.ts";
-import type { Assignment, ChangeEntry, ChangeKind, Child, ChildNote, DayKey, Group, Member, NoteKind, PersistOp, PlannerSnapshot, Reassignment, Role, Session, SessionStatus, Teacher, Template, WeekDays } from "./types.ts";
+import type { Assignment, ChangeEntry, ChangeKind, Child, ChildNote, DayKey, Group, Member, NoteKind, NotifyMode, PersistOp, PlannerSnapshot, Reassignment, Role, Session, SessionStatus, Teacher, Template, WeekDays } from "./types.ts";
 
 type Row = Record<string, unknown>;
 
@@ -36,6 +36,7 @@ const toTemplate = (r: Row): Template => ({
 const toMember = (r: Row): Member => ({
   userId: String(r.user_id), displayName: String(r.display_name ?? ""), role: r.role as Role,
   teacherId: (r.teacher_id as string | null) ?? null,
+  notify: (["none", "instant", "daily"].includes(String(r.notify)) ? String(r.notify) : "none") as NotifyMode,
 });
 const toSession = (r: Row): Session => ({
   id: String(r.id), weekStart: (r.week_start as string | null) ?? null, templateId: (r.template_id as string | null) ?? null,
@@ -148,7 +149,7 @@ export function createSupabaseBackend(client: SupabaseClient, teamId: string): P
       const since = new Date(Date.now() - 14 * 86400000).toISOString();
       const [team, members, teachers, groups, children, childNotes, changes, templates, weeks, sessions] = await Promise.all([
         client.from("teams").select("id, name, join_code").eq("id", teamId).single(),
-        client.from("team_members").select("user_id, display_name, role, teacher_id").eq("team_id", teamId),
+        client.from("team_members").select("user_id, display_name, role, teacher_id, notify").eq("team_id", teamId),
         client.from("teachers").select("*").eq("team_id", teamId).order("sort_order").order("created_at"),
         client.from("groups").select("*").eq("team_id", teamId).order("sort_order").order("created_at"),
         client.from("children").select("*").eq("team_id", teamId).order("sort_order").order("last_name").order("first_name"),
@@ -234,6 +235,15 @@ export function createSupabaseBackend(client: SupabaseClient, teamId: string): P
             id: c.id, team_id: teamId, week_start: c.weekStart, session_id: c.sessionId, kind: c.kind, importance: c.importance,
             summary: c.summary.slice(0, 300), author_id: c.authorId, author_name: c.authorName.slice(0, 120), created_at: c.createdAt,
           }))));
+          if (op.notify) {
+            // E-Mail-Benachrichtigung anstossen; Fehler (z. B. Funktion nicht eingerichtet) bremsen die App nicht
+            for (const c of op.rows.filter((x) => x.importance === "major")) {
+              client.functions.invoke("notify-changes", { body: { changeId: c.id } }).catch(() => undefined);
+            }
+          }
+          return;
+        case "setNotify":
+          check(await client.rpc("set_notify", { p_team: teamId, p_value: op.value }));
           return;
         case "upsertTeachers":
           check(await client.from("teachers").upsert(op.rows.map((t) => ({
