@@ -77,7 +77,8 @@ export function translateError(message: string): string {
   if (/row-level security|permission denied/i.test(message)) return "Dafür fehlen die Berechtigungen (nur Koordination).";
   if (/exclusion constraint|session_week_slot_unique|session_template_slot_unique/i.test(message)) return "Dieser Platz wurde gerade von jemand anderem belegt. Der Plan wurde aktualisiert.";
   if (/mindestens eine Koordination/i.test(message)) return "Das Team braucht mindestens eine Koordination.";
-  if (/Failed to fetch|NetworkError|Load failed/i.test(message)) return "Keine Verbindung. Bitte Internet prüfen.";
+  if (/paused|project is not active|inactive/i.test(message)) return "Der Team-Server ist pausiert (Gratis-Plan nach längerer Nichtnutzung). Die Koordination kann ihn im Supabase-Dashboard mit einem Klick wieder starten – danach hier „Erneut versuchen“.";
+  if (/Failed to fetch|NetworkError|Load failed/i.test(message)) return "Keine Verbindung. Bitte Internet prüfen. Falls das Internet geht: Der Team-Server könnte pausiert sein (Gratis-Plan) – die Koordination startet ihn im Supabase-Dashboard mit einem Klick.";
   if (/Woche nicht gefunden/i.test(message)) return "Diese Woche wurde inzwischen entfernt. Der Plan wurde aktualisiert.";
   if (/JSON object requested|0 rows/i.test(message)) return "Kein Zugriff auf dieses Team (mehr). Bitte neu anmelden oder die Koordination fragen.";
   if (/Could not find the function/i.test(message)) return "Die Datenbank ist nicht auf dem aktuellen Stand (Migration fehlt).";
