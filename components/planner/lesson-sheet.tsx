@@ -4,6 +4,7 @@ import { useState } from "react";
 import { CalendarArrowDown, Check, CircleAlert, CopyPlus, Mail, Trash2, UsersRound } from "lucide-react";
 
 import { LessonHistory } from "@/components/planner/lesson-history";
+import { ReassignPanel } from "@/components/planner/reassign-panel";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -12,7 +13,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { SuggestInput, type Suggestion } from "@/components/ui/suggest-input";
 import { Textarea } from "@/components/ui/textarea";
-import { fullName } from "@/lib/planner/children";
 import { DAYS, SLOTS, isMeetingSlot, slotKind, tint } from "@/lib/planner/constants";
 import { addDays, parseIsoDate, isoDate } from "@/lib/planner/dates";
 import { buildIcs, icsFileName, inviteBody, inviteDetails, mailtoLink } from "@/lib/planner/invite";
@@ -41,7 +41,6 @@ export function LessonSheet({ session, api, snapshot, isCoordinator, templateId,
 }) {
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [inviteTo, setInviteTo] = useState("");
-  const [childSearch, setChildSearch] = useState("");
   const [moveDay, setMoveDay] = useState<DayKey>(session?.day ?? "mo");
   const [moveSlot, setMoveSlot] = useState<number>(session?.slot ?? 0);
 
@@ -57,9 +56,8 @@ export function LessonSheet({ session, api, snapshot, isCoordinator, templateId,
   const invite = isMeeting ? inviteDetails(session, snapshot.teachers) : null;
   const subjectOptions: Suggestion[] = subjectSuggestions(snapshot.sessions).map((value) => ({ value }));
   const roomOptions: Suggestion[] = roomSuggestions(snapshot.sessions).map((value) => ({ value }));
-  const childOptions: Suggestion[] = snapshot.children
-    .filter((c) => c.active)
-    .map((c) => ({ value: c.short, label: `${c.lastName} ${c.firstName}`, hint: `${c.short}${snapshot.groups.find((g) => g.id === c.groupId)?.short ? ` · ${snapshot.groups.find((g) => g.id === c.groupId)?.short}` : ""}` }));
+  const hasChildren = snapshot.children.some((c) => c.active);
+  const dayMeta = session.weekStart ? snapshot.weeks[session.weekStart]?.[session.day] ?? null : null;
 
   function patch(p: Partial<Session>) {
     if (readOnly) return;
@@ -222,26 +220,28 @@ export function LessonSheet({ session, api, snapshot, isCoordinator, templateId,
           </div>
             </>
           )}
+          {!isMeeting && hasChildren && (
+            <div className="field-stack">
+              <Label>Kinder in dieser Lektion umteilen</Label>
+              {dayMeta?.reassignments?.length ? (
+                <p className="reassign-dayinfo">Ganztägig umgeteilt (Tagesfokus): {dayMeta.reassignments.map((r) => `${snapshot.children.find((c) => c.id === r.childId)?.short ?? "?"} → ${snapshot.groups.find((g) => g.id === r.groupId)?.short ?? "?"}`).join(", ")}</p>
+              ) : null}
+              <ReassignPanel
+                list={session.reassignments}
+                onChange={(next) => patch({ reassignments: next })}
+                kids={snapshot.children}
+                groups={snapshot.groups}
+                session={session}
+                day={dayMeta}
+                disabled={readOnly || kind === "template"}
+              />
+              {kind === "template" && <small className="privacy-helper">Umteilungen gelten für konkrete Lektionen einer Woche, nicht für Vorlagen.</small>}
+            </div>
+          )}
           {!isMeeting && (
             <div className="field-stack">
-              <Label htmlFor="children">Abweichende Kinderzuordnung</Label>
-              {childOptions.length > 0 && (
-                <SuggestInput
-                  value={childSearch}
-                  onChange={setChildSearch}
-                  suggestions={childOptions}
-                  placeholder="Kind suchen (z. B. „pa“ für Patrick, Pascal) …"
-                  aria-label="Kind suchen"
-                  disabled={readOnly}
-                  onPick={(s) => {
-                    const child = snapshot.children.find((c) => c.short === s.value);
-                    const text = session!.children.trim();
-                    patch({ children: `${text ? `${text}\n` : ""}${s.value}${child ? ` (${fullName(child).split(" ")[0]})` : ""}: ` });
-                    setChildSearch("");
-                  }}
-                />
-              )}
-              <Textarea id="children" disabled={readOnly} value={session.children} onChange={(e) => patch({ children: e.target.value })} placeholder="Nur Kürzel, z. B. A04 heute in Gruppe 2" rows={3} />
+              <Label htmlFor="children">{hasChildren ? "Notiz zur Kinderzuordnung" : "Abweichende Kinderzuordnung"}</Label>
+              <Textarea id="children" disabled={readOnly} value={session.children} onChange={(e) => patch({ children: e.target.value })} placeholder={hasChildren ? "z. B. AM arbeitet heute am Förderauftrag" : "Nur Kürzel, z. B. A04 heute in Gruppe 2"} rows={2} />
             </div>
           )}
           {!isMeeting && kind === "week" && <LessonHistory all={snapshot.sessions} current={session} onOpen={onOpenSession} />}

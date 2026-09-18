@@ -422,3 +422,16 @@ button, input, textarea { font: inherit; } button { cursor: pointer; }
 .note-text { margin: 6px 0 0; font-size: 14px; line-height: 1.45; white-space: pre-line; }
 .note-edit { display: grid; gap: 8px; margin-top: 8px; } .note-edit-actions { display: flex; justify-content: space-between; gap: 8px; } .note-edit-actions input { max-width: 160px; }
 @media (max-width: 900px) { .kids-layout { grid-template-columns: 1fr; } .kids-list-panel { position: static; } .kids-list { max-height: 260px; } .note-form-row { grid-template-columns: 1fr; } }
+
+/* Kinder umteilen */
+.hw-pill.is-reassign { background: #f3e9d2; color: #6b4a0e; }
+.reassign-panel { display: grid; gap: 8px; }
+.reassign-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.reassign-list li { display: grid; grid-template-columns: 40px 1fr auto 24px; align-items: center; gap: 8px; padding: 5px 8px; border: 1px solid #e8d7ad; border-radius: 9px; background: #fbf5e6; font-size: 13px; }
+.reassign-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reassign-arrow { display: inline-flex; align-items: center; gap: 4px; color: #6d7e90; font-size: 12px; font-weight: 700; }
+.reassign-list button { display: grid; place-items: center; width: 22px; height: 22px; border: 0; border-radius: 50%; background: #ecdfc0; color: #5c3f07; } .reassign-list button:hover { background: #c94e58; color: #fff; }
+.reassign-add { display: grid; grid-template-columns: 1fr 160px auto; gap: 6px; align-items: center; }
+.reassign-panel.is-compact .reassign-add { grid-template-columns: 1fr; }
+.reassign-message { margin: 0; font-size: 12px; line-height: 1.4; } .reassign-message.is-error { color: #b23a44; } .reassign-message.is-hint { color: #6b4a0e; }
+.reassign-dayinfo { margin: 0; padding: 6px 10px; border-radius: 8px; background: #f3e9d2; color: #5c3f07; font-size: 12px; }

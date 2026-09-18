@@ -6,12 +6,13 @@ import { CalendarPlus, Clock3, MessageSquareText, Plus, Users } from "lucide-rea
 import { SessionCard } from "@/components/planner/session-card";
 import { BREAK_AFTER, DAYS, PERIOD_LABEL, PERIOD_STARTS, SLOTS } from "@/lib/planner/constants";
 import { addDays, parseIsoDate } from "@/lib/planner/dates";
-import type { DayKey, Group, Session, Teacher, WeekDays } from "@/lib/planner/types";
+import type { Child, DayKey, Group, Session, Teacher, WeekDays } from "@/lib/planner/types";
 
 const dateFmt = new Intl.DateTimeFormat("de-CH", { day: "2-digit", month: "2-digit" });
 
-export function WeekGrid({ sessions, weekDays, weekStart, groups, teachers, viewerId, onOpen, onDayHeaderClick, onMove }: {
+export function WeekGrid({ sessions, weekDays, weekStart, groups, teachers, kids = [], viewerId, onOpen, onDayHeaderClick, onMove }: {
   sessions: Session[];
+  kids?: Child[];
   weekDays: WeekDays;
   weekStart: string;
   groups: Group[];
@@ -102,7 +103,7 @@ export function WeekGrid({ sessions, weekDays, weekStart, groups, teachers, view
                       aria-label={`${day.label}, ${slot.label}${item ? ": öffnen" : isMeeting ? ": Termin planen" : " planen"}`}
                     >
                       {item
-                        ? <SessionCard session={item} groups={groups} teachers={teachers} viewerId={viewerId} showDragHandle />
+                        ? <SessionCard session={item} groups={groups} teachers={teachers} kids={kids} viewerId={viewerId} showDragHandle />
                         : <span className="add-cell">{isMeeting ? <><CalendarPlus size={16} /> Termin</> : <><Plus size={16} /> Planen</>}</span>}
                     </button>
                   );

@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { PlannerBackend } from "./backend.ts";
 import { makeSession, normalizeDays } from "./logic.ts";
-import type { Assignment, Child, ChildNote, DayKey, Group, Member, NoteKind, PersistOp, PlannerSnapshot, Role, Session, SessionStatus, Teacher, Template, WeekDays } from "./types.ts";
+import type { Assignment, Child, ChildNote, DayKey, Group, Member, NoteKind, PersistOp, PlannerSnapshot, Reassignment, Role, Session, SessionStatus, Teacher, Template, WeekDays } from "./types.ts";
 
 type Row = Record<string, unknown>;
 
@@ -38,6 +38,7 @@ const toSession = (r: Row): Session => ({
   room: String(r.room ?? ""), notes: String(r.notes ?? ""), homework: String(r.homework ?? ""), nextTime: String(r.next_time ?? ""), children: String(r.children ?? ""),
   wholeClass: Boolean(r.whole_class), status: r.status as SessionStatus,
   assignments: Array.isArray(r.assignments) ? (r.assignments as Assignment[]) : [],
+  reassignments: Array.isArray(r.reassignments) ? (r.reassignments as Reassignment[]) : [],
 });
 
 export function sessionToRow(s: Session, teamId: string): Row {
@@ -45,13 +46,13 @@ export function sessionToRow(s: Session, teamId: string): Row {
     id: s.id, team_id: teamId, week_start: s.weekStart, template_id: s.templateId, day: s.day, slot: s.slot,
     title: s.title.slice(0, 120), focus: s.focus.slice(0, 200), room: s.room.slice(0, 80), notes: s.notes.slice(0, 4000),
     homework: s.homework.slice(0, 2000), next_time: s.nextTime.slice(0, 2000),
-    children: s.children.slice(0, 1000), whole_class: s.wholeClass, status: s.status, assignments: s.assignments,
+    children: s.children.slice(0, 1000), whole_class: s.wholeClass, status: s.status, assignments: s.assignments, reassignments: s.reassignments ?? [],
   };
 }
 
 const PATCHABLE: Partial<Record<keyof Session, string>> = {
   title: "title", focus: "focus", room: "room", notes: "notes", homework: "homework", nextTime: "next_time", children: "children",
-  wholeClass: "whole_class", status: "status", assignments: "assignments", day: "day", slot: "slot",
+  wholeClass: "whole_class", status: "status", assignments: "assignments", reassignments: "reassignments", day: "day", slot: "slot",
 };
 
 /** Nur die geänderten Felder als Spalten (mit denselben Längenbegrenzungen wie beim Einfügen). */

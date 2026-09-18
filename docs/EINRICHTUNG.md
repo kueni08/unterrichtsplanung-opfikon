@@ -78,6 +78,10 @@ Zusätzliche Regeln, die in der Datenbank erzwungen werden:
 
 Tabelle `children` (Vor-/Nachname, Kürzel, `group_id`), RLS wie bei `groups` (Mitglieder lesen, Koordination schreibt). `groups.children` bleibt als Kürzel-Spiegel der Zuordnung bestehen (`syncGroupChildren` in `lib/planner/children.ts`), damit Zählung und Kinderzuordnung pro Lektion unverändert funktionieren. Der Excel-Import nutzt SheetJS (`xlsx`), das erst beim Import nachgeladen wird.
 
+## Umteilungen
+
+`sessions.reassignments` (JSON `[{childId, groupId}]`) für Lektionen, `weeks.days.<tag>.reassignments` für Tage (`patch_week_day` erlaubt den Schlüssel). Auflösung: Lektion → Tag → `children.group_id` (`lib/planner/reassign.ts`).
+
 ## Verhaltensnotizen
 
 Tabelle `child_notes` (Kind, Art `plus|minus|info`, Text, Datum, `author_id`). Alle Teammitglieder lesen und erfassen (nur mit eigener `author_id`); ändern/löschen darf die erfassende Person oder die Koordination. Beim Löschen eines Kindes werden seine Notizen kaskadierend gelöscht.

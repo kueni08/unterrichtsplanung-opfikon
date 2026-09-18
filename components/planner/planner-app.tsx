@@ -21,6 +21,7 @@ import { usePlanner } from "@/hooks/use-planner";
 import type { PlannerBackend } from "@/lib/planner/backend";
 import { weekStartFor, isoWeekNumber, parseIsoDate, addDays } from "@/lib/planner/dates";
 import { countChildren, emptyDays, initialsFrom, planningWarnings, sessionsIn } from "@/lib/planner/logic";
+import { reassignmentWarnings } from "@/lib/planner/reassign";
 import type { DayKey, Role } from "@/lib/planner/types";
 
 const weekLabelFmt = new Intl.DateTimeFormat("de-CH", { day: "2-digit", month: "short" });
@@ -94,7 +95,7 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
   const selectedView = viewOverride ?? api.me?.teacherId ?? "all";
   const selectedTemplateId = templateOverride ?? snapshot.templates[0]?.id ?? "";
   const activeTeachers = snapshot.teachers.filter((t) => t.active);
-  const warnings = planningWarnings(sessionsInWeek, snapshot.groups, snapshot.teachers);
+  const warnings = [...planningWarnings(sessionsInWeek, snapshot.groups, snapshot.teachers), ...reassignmentWarnings(sessionsInWeek, weekDays ?? null, snapshot.children, snapshot.groups)];
   const sheetSession = sheetSessionId ? snapshot.sessions.find((s) => s.id === sheetSessionId) ?? null : null;
   const monday = parseIsoDate(weekStart);
   const weekEnd = addDays(monday, 4);
@@ -282,6 +283,7 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
                 weekStart={weekStart}
                 groups={snapshot.groups}
                 teachers={snapshot.teachers}
+                kids={snapshot.children}
                 viewerId={selectedView}
                 onOpen={openWeekCell}
                 onDayHeaderClick={handleDayHeaderClick}
@@ -299,6 +301,7 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
             sessions={sessionsInWeek}
             groups={snapshot.groups}
             teachers={snapshot.teachers}
+            kids={snapshot.children}
             dayMeta={weekDays?.[selectedDay] ?? emptyDays(snapshot.teachers)[selectedDay]}
             disabled={!weekExists}
             viewerId={selectedView}
