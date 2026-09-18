@@ -138,6 +138,8 @@ Die Anwendung lässt sich ohne Konto und ohne Internetverbindung zum Server im D
 
 ## Häufige Fragen und Fehlerbehebung
 
+- **„Der Team-Server ist pausiert“ / keine Verbindung trotz Internet:** Der Gratis-Plan des Servers pausiert nach längerer Nichtnutzung. Ein Wecker hält ihn normalerweise wach; falls doch, startet die Koordination ihn im Supabase-Dashboard (Link in der Übergabe) mit einem Klick, danach in der App „Erneut versuchen“.
+
 **Ich habe keine Bestätigungs-E-Mail erhalten.**
 Spam-Ordner prüfen, kurz warten und es später erneut versuchen. Der eingebaute Mailversand von Supabase ist auf ein begrenztes Volumen ausgelegt; bei wiederholten Problemen die technische Ansprechperson der Schule informieren.
 

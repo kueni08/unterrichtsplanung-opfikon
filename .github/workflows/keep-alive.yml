@@ -1,0 +1,54 @@
+name: Supabase wach halten
+
+# Der Gratis-Plan pausiert ein Projekt nach 7 Tagen ohne Zugriffe. Dieser Zeitplan stupst das
+# Projekt alle zwei Tage an (zählt als Aktivität) und stellt es – falls trotzdem pausiert und ein
+# SUPABASE_ACCESS_TOKEN als Repository-Secret hinterlegt ist – automatisch wieder her.
+
+on:
+  schedule:
+    - cron: "17 5 */2 * *"   # alle zwei Tage um 05:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://gppbxybdteihpoawyxpy.supabase.co' }}
+  SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_w6jOmcVIq-oaXK7eAraAJA_7uKW8dEr' }}
+  PROJECT_REF: gppbxybdteihpoawyxpy
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Datenbank anstupsen (REST-Abfrage mit öffentlichem Schlüssel)
+        id: ping
+        run: |
+          code=$(curl -s -o /tmp/body -w '%{http_code}' \
+            -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_PUBLISHABLE_KEY" \
+            "$SUPABASE_URL/rest/v1/teams?select=id&limit=1")
+          echo "REST: HTTP $code – $(head -c 200 /tmp/body)"
+          curl -s -o /dev/null -w 'Auth health: HTTP %{http_code}\n' "$SUPABASE_URL/auth/v1/health" -H "apikey: $SUPABASE_PUBLISHABLE_KEY"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Status prüfen und bei Pause wiederherstellen (nur mit SUPABASE_ACCESS_TOKEN)
+        if: ${{ secrets.SUPABASE_ACCESS_TOKEN != '' }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          status=$(curl -s -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF" | sed -n 's/.*"status":"\([A-Z_]*\)".*/\1/p')
+          echo "Projektstatus: $status"
+          if [ "$status" = "INACTIVE" ]; then
+            echo "Projekt ist pausiert – stelle wieder her …"
+            curl -s -X POST -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+              "https://api.supabase.com/v1/projects/$PROJECT_REF/restore"
+            echo
+          fi
+
+      - name: Ergebnis
+        run: |
+          if [ "${{ steps.ping.outputs.code }}" != "200" ]; then
+            echo "::warning::Das Supabase-Projekt hat nicht mit 200 geantwortet (HTTP ${{ steps.ping.outputs.code }}). Falls pausiert: im Dashboard unter https://supabase.com/dashboard/project/$PROJECT_REF wieder starten oder SUPABASE_ACCESS_TOKEN als Secret hinterlegen."
+          fi
