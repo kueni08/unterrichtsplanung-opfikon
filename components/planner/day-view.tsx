@@ -83,7 +83,7 @@ function DaySidebar({ day, meta, teachers, kids, groups, onChange, disabled }: {
   }
 
   return (
-    <aside className="day-sidebar">
+    <aside className="day-sidebar" data-tour="day-sidebar">
       {disabled && <div className="sidebar-disabled">Lege zuerst eine Woche aus einer Vorlage an.</div>}
       <section className="side-panel">
         <div className="side-title"><Users /><div><h3>Anwesende Lehrpersonen</h3><p>Wer ist heute vor Ort?</p></div></div>
