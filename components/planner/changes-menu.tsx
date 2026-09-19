@@ -13,8 +13,10 @@ import type { ChangeEntry, NotifyMode } from "@/lib/planner/types";
  * „Was ist neu“: Glocke mit Zähler der Änderungen anderer seit dem letzten „Alles gesehen“,
  * Liste mit wer/wann/was, optional die ganze Historie der letzten Tage.
  */
-export function ChangesMenu({ changes, since, viewerId, onSeen, onOpenSession, notify, onNotifyChange, onTestMail }: {
+export function ChangesMenu({ changes, since, viewerId, onSeen, onOpenSession, notify, onNotifyChange, onTestMail, tourId }: {
   changes: ChangeEntry[];
+  /** Markierung für die Einführungstour */
+  tourId?: string;
   since: string;
   viewerId: string;
   onSeen: () => void;
@@ -36,7 +38,7 @@ export function ChangesMenu({ changes, since, viewerId, onSeen, onOpenSession, n
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button type="button" className={`changes-bell ${unseen.length ? "has-unseen" : ""} ${majorCount ? "has-major" : ""}`} aria-label={unseen.length ? `${unseen.length} neue Änderungen im Team` : "Änderungen im Team"}>
+        <button type="button" data-tour={tourId} className={`changes-bell ${unseen.length ? "has-unseen" : ""} ${majorCount ? "has-major" : ""}`} aria-label={unseen.length ? `${unseen.length} neue Änderungen im Team` : "Änderungen im Team"}>
           <Bell size={18} />
           {unseen.length > 0 && <span className="changes-count">{unseen.length > 99 ? "99+" : unseen.length}</span>}
         </button>

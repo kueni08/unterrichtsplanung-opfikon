@@ -145,7 +145,7 @@ export function AdminView({ api, snapshot, mode, selectedTemplateId, onSelectTem
         <article className="admin-card team-card">
           <div className="card-heading"><span className="icon-box blue"><Users /></span><div><h3>Team</h3><p>Name, Code, Mitglieder</p></div></div>
           <div className="field-stack"><label htmlFor="team-name-input">Teamname</label><Input id="team-name-input" value={snapshot.team.name} onChange={(e) => api.renameTeam(e.target.value)} disabled={mode === "demo"} /></div>
-          <div className="join-code-block">
+          <div className="join-code-block" data-tour="join-code">
             <span className="join-code-label">Beitrittscode</span>
             <div className="join-code-row">
               <strong className="join-code-value">{snapshot.team.joinCode}</strong>

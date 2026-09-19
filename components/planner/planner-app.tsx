@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { BookOpenCheck, CalendarDays, Check, CheckCheck, ChevronLeft, ChevronRight, CircleAlert, CopyPlus, GripVertical, HelpCircle, LayoutGrid, LogOut, Printer, Settings2, TriangleAlert, UserRound, Users } from "lucide-react";
 
 import { AdminView, MiniTemplate } from "@/components/planner/admin-view";
@@ -13,7 +13,7 @@ import { MoveDialog, type MoveConflict } from "@/components/planner/move-dialog"
 import { OwlLogo } from "@/components/planner/owl-logo";
 import { Splash } from "@/components/planner/splash";
 import { WeekGrid } from "@/components/planner/week-grid";
-import { WelcomeTour } from "@/components/planner/welcome-tour";
+import { WelcomeTour, type TourTab } from "@/components/planner/welcome-tour";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -63,7 +63,9 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
   onExitDemo?: () => void;
 }) {
   const api = usePlanner(backend, { userId, displayName });
-  const [tab, setTab] = useState<"week" | "day" | "homework" | "kids" | "admin">("week");
+  const [tab, setTab] = useState<TourTab>("week");
+  /** Tab, auf dem die Einführung gestartet wurde – wird beim Schliessen wiederhergestellt */
+  const tourReturnTab = useRef<TourTab>("week");
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState<DayKey>(defaultDayForToday);
   const [viewOverride, setViewOverride] = useState<string | null>(null);
@@ -137,7 +139,20 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
       try { window.localStorage.setItem(tourSeenKey(userId), "1"); } catch { /* Speicher gesperrt */ }
       if (mode === "team") api.markTourSeen();
     }
+    if (!open) setTab(tourReturnTab.current);
     setTourOpen(open);
+  }
+
+  function openTour() {
+    tourReturnTab.current = activeTab;
+    setTourForced(true);
+    setTourOpen(true);
+  }
+
+  /** Die Einführung zeigt Elemente auf anderen Tabs – nur Tabs, die es für diese Rolle gibt */
+  function tourNavigate(target: TourTab) {
+    if (target === "admin" && !api.isCoordinator) return;
+    setTab(target);
   }
 
   /** Verschieben: leerer Platz → direkt; belegter Platz → nachfragen (dazwischen, tauschen, ersetzen, anhängen). */
@@ -174,8 +189,8 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
           </div>
         </div>
         <div className="header-meta">
-          <ChangesMenu changes={snapshot.changes} since={since} viewerId={userId} onSeen={markSeen} onOpenSession={(id) => { if (snapshot.sessions.some((s) => s.id === id)) setSheetSessionId(id); }} notify={api.me?.notify} onNotifyChange={mode === "team" ? api.setNotify : undefined} onTestMail={mode === "team" ? api.testMail : undefined} />
-          <button type="button" className="help-button" onClick={() => { setTourForced(true); setTourOpen(true); }} aria-label="Kurze Einführung anzeigen"><HelpCircle size={18} /></button>
+          <ChangesMenu tourId="bell" changes={snapshot.changes} since={since} viewerId={userId} onSeen={markSeen} onOpenSession={(id) => { if (snapshot.sessions.some((s) => s.id === id)) setSheetSessionId(id); }} notify={api.me?.notify} onNotifyChange={mode === "team" ? api.setNotify : undefined} onTestMail={mode === "team" ? api.testMail : undefined} />
+          <button type="button" className="help-button" onClick={openTour} aria-label="Kurze Einführung anzeigen"><HelpCircle size={18} /></button>
           <p className={`save-state save-${api.saveState}`}>{saveIcon} {saveLabel}</p>
           {mode === "team" && onlineTeachers.length > 0 && (
             <div className="avatar-stack" aria-label="Gerade online">
@@ -211,7 +226,7 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
             <TabsTrigger value="kids"><UserRound /> Kinder</TabsTrigger>
             {api.isCoordinator && <TabsTrigger value="admin"><Settings2 /> Admin</TabsTrigger>}
           </TabsList>
-          <div className="view-selector">
+          <div className="view-selector" data-tour="view">
             <span>Ansicht:</span>
             <Select value={selectedView} onValueChange={setViewOverride}>
               <SelectTrigger aria-label="Persönliche Ansicht"><SelectValue /></SelectTrigger>
@@ -234,7 +249,7 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
               <Button variant="outline" size="icon" onClick={() => setWeekOffset((v) => v + 1)} aria-label="Nächste Woche"><ChevronRight /></Button>
               {weekOffset !== 0 && <Button variant="ghost" size="sm" onClick={() => setWeekOffset(0)}>Heute</Button>}
             </div>
-            <div className="toolbar-actions">
+            <div className="toolbar-actions" data-tour="toolbar">
               <Select value={selectedTemplateId} onValueChange={setTemplateOverride}>
                 <SelectTrigger aria-label="Wochenvorlage" className="template-select"><SelectValue /></SelectTrigger>
                 <SelectContent>{snapshot.templates.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
@@ -249,10 +264,10 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
             <span className="legend-label">Gruppen</span>
             {snapshot.groups.map((group) => <span className="legend-chip" key={group.id}><i style={{ background: group.color }} />{group.name}</span>)}
             <span className="legend-chip all"><Users size={14} />Alle {countChildren(snapshot.groups)}</span>
-            <span className="drag-hint"><GripVertical size={14} /> Blöcke ziehen oder im Block „Verschieben“ wählen</span>
+            <span className="drag-hint" data-tour="drag-hint"><GripVertical size={14} /> Blöcke ziehen oder im Block „Verschieben“ wählen</span>
           </div>
 
-          <div className="privacy-strip">
+          <div className="privacy-strip" data-tour="privacy">
             <CircleAlert size={16} />
             <span><strong>Datenschutz:</strong> Im Wochenplan erscheinen Kinder nur mit Kürzel. Keine Diagnosen oder privaten Details in Notizfeldern.</span>
             <span className="privacy-count">{countChildren(snapshot.groups)} Kürzel erfasst</span>
@@ -278,7 +293,7 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
                 <CopyPlus /> {snapshot.templates.find((t) => t.id === selectedTemplateId)?.name ?? "Vorlage"} übernehmen
               </Button>
               {selectedTemplateId && (
-                <div className="template-preview">
+                <div className="template-preview" data-tour="template-preview">
                   <p className="admin-subheading">Vorschau der Vorlage</p>
                   <MiniTemplate
                     readOnly
@@ -376,7 +391,7 @@ export function PlannerApp({ backend, userId, displayName, mode, teams, onSwitch
           else if (action === "append") { api.appendSession(session.id, target.id); setSheetSessionId(null); }
         }}
       />
-      <WelcomeTour open={tourOpen && !(api.me?.tourSeen && !tourForced)} onOpenChange={closeTour} role={api.role} joinCode={snapshot.team.joinCode} />
+      <WelcomeTour open={tourOpen && !(api.me?.tourSeen && !tourForced)} onOpenChange={closeTour} role={api.role} joinCode={snapshot.team.joinCode} onNavigate={tourNavigate} />
       <Toaster richColors position="bottom-center" />
     </main>
   );

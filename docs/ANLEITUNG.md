@@ -29,7 +29,7 @@ Den Beitrittscode findet die Koordination im Admin-Bereich und kann ihn dort bei
 
 ### Einführungstour
 
-Über den Knopf mit dem Fragezeichen lässt sich jederzeit eine kurze Einführungstour durch die wichtigsten Bereiche der Anwendung starten.
+Über den Knopf mit dem Fragezeichen lässt sich jederzeit eine kurze Einführungstour starten. Sie führt in acht Schritten durch die Anwendung: Sie wechselt selbst auf den passenden Bereich (Wochenplan, Tagesfokus, Admin), hebt das beschriebene Element hervor und blendet die Erklärung daneben ein. Mit den Pfeiltasten geht es vor und zurück, mit Esc lässt sich die Tour schliessen; „Nicht mehr anzeigen“ merkt sich das auf allen Geräten.
 
 ## Wochenplan
 
